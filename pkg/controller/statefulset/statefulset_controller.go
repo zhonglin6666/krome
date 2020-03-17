@@ -3,7 +3,7 @@ package statefulset
 import (
 	"context"
 
-	kromev1 "krome/pkg/apis/krome/v1"
+	appsv1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +46,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource Statefulset
-	err = c.Watch(&source.Kind{Type: &kromev1.Statefulset{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &appsv1.Statefulset{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Watch for changes to secondary resource Pods and requeue the owner Statefulset
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &kromev1.Statefulset{},
+		OwnerType:    &appsv1.Statefulset{},
 	})
 	if err != nil {
 		return err
@@ -73,6 +73,8 @@ type ReconcileStatefulset struct {
 	// that reads objects from the cache and writes to the apiserver
 	client client.Client
 	scheme *runtime.Scheme
+
+
 }
 
 // Reconcile reads that state of the cluster for a Statefulset object and makes changes based on the state read
@@ -87,7 +89,7 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 	reqLogger.Info("Reconciling Statefulset")
 
 	// Fetch the Statefulset instance
-	instance := &kromev1.Statefulset{}
+	instance := &appsv1.Statefulset{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -130,7 +132,7 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *kromev1.Statefulset) *corev1.Pod {
+func newPodForCR(cr *appsv1.Statefulset) *corev1.Pod {
 	labels := map[string]string{
 		"app": cr.Name,
 	}

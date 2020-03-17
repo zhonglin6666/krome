@@ -67,7 +67,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - krome.apps
+  - apps.krome.io
   resources:
   - '*'
   verbs:

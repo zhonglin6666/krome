@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"krome/pkg/controller/statefulset"
+	"github.com/zhonglin6666/krome/pkg/controller/statefulset"
 )
 
 func init() {

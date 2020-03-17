@@ -11,6 +11,11 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+
+	"github.com/zhonglin6666/krome/pkg/apis"
+	"github.com/zhonglin6666/krome/pkg/controller"
+	"github.com/zhonglin6666/krome/version"
+
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
@@ -24,10 +29,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-
-	"krome/pkg/apis"
-	"krome/pkg/controller"
-	"krome/version"
 )
 
 // Change below variables to serve metrics on different host or port.
