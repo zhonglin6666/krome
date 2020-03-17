@@ -221,6 +221,7 @@ type StatefulsetStatus struct {
 	Conditions []appsv1.StatefulSetCondition
 }
 
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Statefulset is the Schema for the statefulsets API

@@ -2,13 +2,19 @@ package statefulset
 
 import (
 	"context"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 
-	appsv1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -17,9 +23,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
+	kromeclient "github.com/zhonglin6666/krome/pkg/client"
+	// kromelister "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
 )
 
-var log = logf.Log.WithName("controller_statefulset")
+var (
+	log = logf.Log.WithName("controller_statefulset")
+
+	// controllerKind contains the schema.GroupVersionKind for statefulset type.
+	controllerKind = kromev1.SchemeGroupVersion.WithKind("Statefulset")
+
+	podKind                = corev1.SchemeGroupVersion.WithKind("Pod")
+	pvcKind                = corev1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")
+	controllerRevisionKind = appsv1.SchemeGroupVersion.WithKind("ControllerRevision")
+)
 
 /**
 * USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
@@ -29,12 +48,52 @@ var log = logf.Log.WithName("controller_statefulset")
 // Add creates a new Statefulset Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	r, err := newReconciler(mgr)
+	if err != nil {
+		return err
+	}
+
+	return add(mgr, r)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileStatefulset{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
+	// TODO cache
+	//cache := mgr.GetCache()
+	//statefulsetInformer, err := cache.GetInformerForKind(controllerKind)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//podInformer, err := cache.GetInformerForKind(podKind)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//pvcInformer, err := cache.GetInformerForKind(pvcKind)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//revInformer, err := cache.GetInformerForKind(controllerRevisionKind)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//statefulsetLister, err := kromelister.NewStatefulsetLister(statefulsetInformer.)
+
+	kromeClient, err := kromeclient.NewClient(mgr)
+	if err != nil {
+		return nil, err
+	}
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
+
+	return &ReconcileStatefulset{
+		client:      mgr.GetClient(),
+		scheme:      mgr.GetScheme(),
+		kromeClient: kromeClient,
+	}, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -46,7 +105,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource Statefulset
-	err = c.Watch(&source.Kind{Type: &appsv1.Statefulset{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &kromev1.Statefulset{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -55,7 +114,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// Watch for changes to secondary resource Pods and requeue the owner Statefulset
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &appsv1.Statefulset{},
+		OwnerType:    &kromev1.Statefulset{},
 	})
 	if err != nil {
 		return err
@@ -71,10 +130,16 @@ var _ reconcile.Reconciler = &ReconcileStatefulset{}
 type ReconcileStatefulset struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client      client.Client
+	scheme      *runtime.Scheme
+	kromeClient *kromeclient.Client
 
-
+	podControl controller.PodControlInterface
+	// podLister is able to list/get pods from a shared informer's store
+	podLister corelisters.PodLister
+	// podListerSynced returns true if the pod shared informer has synced at least once
+	podListerSynced cache.InformerSynced
+	// setLister is able to list/get stateful sets from a shared informer's store
 }
 
 // Reconcile reads that state of the cluster for a Statefulset object and makes changes based on the state read
@@ -89,7 +154,7 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 	reqLogger.Info("Reconciling Statefulset")
 
 	// Fetch the Statefulset instance
-	instance := &appsv1.Statefulset{}
+	instance := &kromev1.Statefulset{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -132,7 +197,7 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *appsv1.Statefulset) *corev1.Pod {
+func newPodForCR(cr *kromev1.Statefulset) *corev1.Pod {
 	labels := map[string]string{
 		"app": cr.Name,
 	}
