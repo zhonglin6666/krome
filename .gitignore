@@ -57,6 +57,7 @@ anaconda-mode/
 *.dll
 *.so
 *.dylib
+*_output
 # Test binary, build with 'go test -c'
 *.test
 # Output of the go coverage tool, specifically when used with LiteIDE
@@ -72,7 +73,7 @@ Session.vim
 # auto-generated tag files
 tags
 ### Idea ###
-.idea*
+*.idea/
 ### VisualStudioCode ###
 .vscode/*
 .history

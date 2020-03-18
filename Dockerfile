@@ -1,11 +1,11 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
-ENV OPERATOR=/usr/local/bin/krome \
+ENV OPERATOR=/usr/local/bin/krome-manager \
     USER_UID=1001 \
     USER_NAME=krome
 
 # install operator binary
-COPY build/_output/bin/krome ${OPERATOR}
+COPY _output/krome-manager ${OPERATOR}
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup

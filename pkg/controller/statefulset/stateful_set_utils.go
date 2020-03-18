@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"k8s.io/klog"
 	"regexp"
 	"strconv"
 
@@ -33,7 +34,7 @@ import (
 	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
 )
 
-var patchCodec = scheme.Codecs.LegacyCodec(apps.SchemeGroupVersion)
+var patchCodec = scheme.Codecs.LegacyCodec(kromev1.SchemeGroupVersion)
 
 // overlappingStatefulSets sorts a list of StatefulSets by creation timestamp, using their names as a tie breaker.
 // Generally used to tie break between StatefulSets that have overlapping selectors.
@@ -289,16 +290,21 @@ func getPatch(set *kromev1.Statefulset) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var raw map[string]interface{}
 	json.Unmarshal([]byte(str), &raw)
+
 	objCopy := make(map[string]interface{})
 	specCopy := make(map[string]interface{})
 	spec := raw["spec"].(map[string]interface{})
-	template := spec["template"].(map[string]interface{})
+	klog.Infof("zzlin getPath begin.............spec: %#v", spec)
+	template := spec["Template"].(map[string]interface{})
+	klog.Infof("zzlin getPath begin.............template: %#v", template)
 	specCopy["template"] = template
 	template["$patch"] = "replace"
 	objCopy["spec"] = specCopy
 	patch, err := json.Marshal(objCopy)
+	klog.Infof("  zzlin getPaht obj: %#v, err: %v", patch, err)
 	return patch, err
 }
 
@@ -307,10 +313,13 @@ func getPatch(set *kromev1.Statefulset) ([]byte, error) {
 // ControllerRevision is valid. StatefulSet revisions are stored as patches that re-apply the current state of set
 // to a new StatefulSet using a strategic merge patch to replace the saved state of the new StatefulSet.
 func newRevision(set *kromev1.Statefulset, revision int64, collisionCount *int32) (*apps.ControllerRevision, error) {
+	klog.Infof("  zzlin newRevision begin........  set: %#v revision: %v", set.Name, revision)
 	patch, err := getPatch(set)
+	klog.Infof("  zzlin newRevision begin........  getPatch: %#v")
 	if err != nil {
 		return nil, err
 	}
+	klog.Infof("  zzlin newRevision begin........")
 	cr, err := history.NewControllerRevision(set,
 		controllerKind,
 		set.Spec.Template.Labels,
@@ -359,7 +368,7 @@ func nextRevision(revisions []*apps.ControllerRevision) int64 {
 // inconsistentStatus returns true if the ObservedGeneration of status is greater than set's
 // Generation or if any of the status's fields do not match those of set's status.
 func inconsistentStatus(set *kromev1.Statefulset, status *kromev1.StatefulsetStatus) bool {
-	return status.ObservedGeneration > set.Status.ObservedGeneration ||
+	return *(status.ObservedGeneration) > *(set.Status.ObservedGeneration) ||
 		status.Replicas != set.Status.Replicas ||
 		status.CurrentReplicas != set.Status.CurrentReplicas ||
 		status.ReadyReplicas != set.Status.ReadyReplicas ||

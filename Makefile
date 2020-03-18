@@ -8,23 +8,25 @@ NAME=krome-manager
 
 CURRENT_DIR=$(shell pwd)
 
-all: fmt build test
+all: fmt build-exec image apply
 
 # Run tests
 test: generate fmt vet
 	go test ./pkg/... ./cmd/... -coverprofile cover.out
 
-build:
+build-exec:
 	mkdir -p ./_output
 	echo "Building server..."
 	CGO_ENABLED=0 GOOS=linux go build -v -i -ldflags '-X main.version=$(REV) ' -o ./_output/${NAME} ./cmd/manager/$*
 
 clean:
+	kubectl delete -f examples
+	kubectl delete -f deploy
 	rm -rf ./output
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy:
-	kubectl apply -f config/crds
+apply:
+	kubectl apply -f deploy/
 
 # Run go fmt against code
 fmt:

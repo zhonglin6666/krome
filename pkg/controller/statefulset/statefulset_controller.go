@@ -2,31 +2,38 @@ package statefulset
 
 import (
 	"context"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
+	"fmt"
+	"time"
+
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	appsinformers "k8s.io/client-go/informers/apps/v1"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
+	kubecontroller "k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/controller/history"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
 	kromeclient "github.com/zhonglin6666/krome/pkg/client"
-	// kromelister "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
+	kromelisters "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
 )
 
 var (
@@ -59,41 +66,32 @@ func Add(mgr manager.Manager) error {
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 	// TODO cache
-	//cache := mgr.GetCache()
-	//statefulsetInformer, err := cache.GetInformerForKind(controllerKind)
+	// cacher := mgr.GetCache()
+	//statefulsetInformer, err := cacher.GetInformerForKind(controllerKind)
 	//if err != nil {
 	//	return nil, err
 	//}
-	//podInformer, err := cache.GetInformerForKind(podKind)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//pvcInformer, err := cache.GetInformerForKind(pvcKind)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//revInformer, err := cache.GetInformerForKind(controllerRevisionKind)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//statefulsetLister, err := kromelister.NewStatefulsetLister(statefulsetInformer.)
 
 	kromeClient, err := kromeclient.NewClient(mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
+	k8sInformerFactory := informers.NewSharedInformerFactory(kromeClient.K8sClient, time.Second*30)
+	podInformer := k8sInformerFactory.Core().V1().Pods()
+	pvcInformer := k8sInformerFactory.Core().V1().PersistentVolumeClaims()
+	revInformer := k8sInformerFactory.Apps().V1().ControllerRevisions()
 
-	return &ReconcileStatefulset{
-		client:      mgr.GetClient(),
-		scheme:      mgr.GetScheme(),
-		kromeClient: kromeClient,
-	}, nil
+	// set up signals so we handle the first shutdown signal gracefully
+	stopCh := make(chan struct{})
+	k8sInformerFactory.Start(stopCh)
+
+	return newReconcileStatefulset(
+		mgr,
+		podInformer,
+		pvcInformer,
+		revInformer,
+		kromeClient), nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -128,18 +126,71 @@ var _ reconcile.Reconciler = &ReconcileStatefulset{}
 
 // ReconcileStatefulset reconciles a Statefulset object
 type ReconcileStatefulset struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client      client.Client
+	mgr         manager.Manager
 	scheme      *runtime.Scheme
 	kromeClient *kromeclient.Client
 
-	podControl controller.PodControlInterface
+	control StatefulSetControlInterface
+
+	podControl kubecontroller.PodControlInterface
 	// podLister is able to list/get pods from a shared informer's store
 	podLister corelisters.PodLister
 	// podListerSynced returns true if the pod shared informer has synced at least once
 	podListerSynced cache.InformerSynced
+
 	// setLister is able to list/get stateful sets from a shared informer's store
+	setLister kromelisters.StatefulsetLister
+}
+
+func newReconcileStatefulset(
+	mgr manager.Manager,
+	podInformer coreinformers.PodInformer,
+	//setInformer kromeinformers.StatefulsetInformer,
+	pvcInformer coreinformers.PersistentVolumeClaimInformer,
+	revInformer appsinformers.ControllerRevisionInformer,
+	kromeClient *kromeclient.Client,
+) *ReconcileStatefulset {
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
+
+	r := &ReconcileStatefulset{
+		mgr:         mgr,
+		kromeClient: kromeClient,
+		control: NewDefaultStatefulSetControl(
+			NewRealStatefulPodControl(
+				kromeClient.K8sClient,
+				// setInformer.Lister(),
+				podInformer.Lister(),
+				pvcInformer.Lister(),
+				recorder,
+			),
+			NewRealStatefulSetStatusUpdater(
+				kromeClient,
+				nil,
+			),
+			history.NewHistory(kromeClient.K8sClient, revInformer.Lister()),
+			recorder,
+		),
+		podControl: kubecontroller.RealPodControl{
+			KubeClient: kromeClient.K8sClient,
+			Recorder:   recorder,
+		},
+		podLister: podInformer.Lister(),
+	}
+
+	return r
+}
+
+// syncStatefulset syncs a tuple of (statefulset, []*v1.Pod).
+func (r *ReconcileStatefulset) syncStatefulset(set *kromev1.Statefulset, pods []*corev1.Pod) error {
+	klog.Infof("  zzlin Syncing Statefulset %v/%v with %d pods", set.Namespace, set.Name, len(pods))
+	if err := r.control.UpdateStatefulSet(set.DeepCopy(), pods); err != nil {
+		return err
+	}
+	klog.Infof("  zzlin Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
+	return nil
 }
 
 // Reconcile reads that state of the cluster for a Statefulset object and makes changes based on the state read
@@ -154,8 +205,8 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 	reqLogger.Info("Reconciling Statefulset")
 
 	// Fetch the Statefulset instance
-	instance := &kromev1.Statefulset{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	set := &kromev1.Statefulset{}
+	err := r.mgr.GetClient().Get(context.TODO(), request.NamespacedName, set)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -167,54 +218,109 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
+	reqLogger.Info("zzlin Reconcile set", set.Name)
 
-	// Set Statefulset instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// Pod created successfully - don't requeue
+	selector, err := metav1.LabelSelectorAsSelector(set.Spec.Selector)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("error converting StatefulSet %v selector: %v", request.String(), err))
+		// This is a non-transient error, so don't retry.
 		return reconcile.Result{}, nil
-	} else if err != nil {
+	}
+
+	if err := r.adoptOrphanRevisions(set); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
-	return reconcile.Result{}, nil
+	pods, err := r.getPodsForStatefulSet(set, selector)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	return reconcile.Result{}, r.syncStatefulset(set, pods)
+
+	//// Set Statefulset instance as the owner and controller
+	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
+	//	return reconcile.Result{}, err
+	//}
+	//
+	//// Check if this Pod already exists
+	//found := &corev1.Pod{}
+	//err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	//if err != nil && errors.IsNotFound(err) {
+	//	reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
+	//	err = r.client.Create(context.TODO(), pod)
+	//	if err != nil {
+	//		return reconcile.Result{}, err
+	//	}
+	//
+	//	// Pod created successfully - don't requeue
+	//	return reconcile.Result{}, nil
+	//} else if err != nil {
+	//	return reconcile.Result{}, err
+	//}
+	//
+	//// Pod already exists - don't requeue
+	//reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	// return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *kromev1.Statefulset) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
+// adoptOrphanRevisions adopts any orphaned ControllerRevisions matched by set's Selector.
+func (r *ReconcileStatefulset) adoptOrphanRevisions(set *kromev1.Statefulset) error {
+	revisions, err := r.control.ListRevisions(set)
+	if err != nil {
+		return err
 	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+	hasOrphans := false
+	for i := range revisions {
+		if metav1.GetControllerOf(revisions[i]) == nil {
+			hasOrphans = true
+			break
+		}
 	}
+	if hasOrphans {
+		fresh, err := r.kromeClient.KromeClient.AppsV1().Statefulsets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if fresh.UID != set.UID {
+			return fmt.Errorf("original StatefulSet %v/%v is gone: got uid %v, wanted %v", set.Namespace, set.Name, fresh.UID, set.UID)
+		}
+		return r.control.AdoptOrphanRevisions(set, revisions)
+	}
+	return nil
+}
+
+// getPodsForStatefulSet returns the Pods that a given Statefulset should manage.
+// It also reconciles ControllerRef by adopting/orphaning.
+//
+// NOTE: Returned Pods are pointers to objects from the cache.
+//       If you need to modify one, you need to copy it first.
+func (r *ReconcileStatefulset) getPodsForStatefulSet(set *kromev1.Statefulset, selector labels.Selector) ([]*corev1.Pod, error) {
+	// List all pods to include the pods that don't match the selector anymore but
+	// has a ControllerRef pointing to this StatefulSet.
+	pods, err := r.podLister.Pods(set.Namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	filter := func(pod *corev1.Pod) bool {
+		// Only claim if it matches our StatefulSet name. Otherwise release/ignore.
+		return isMemberOf(set, pod)
+	}
+
+	// If any adoptions are attempted, we should first recheck for deletion with
+	// an uncached quorum read sometime after listing Pods (see #42639).
+	canAdoptFunc := kubecontroller.RecheckDeletionTimestamp(func() (metav1.Object, error) {
+		fresh, err := r.kromeClient.KromeClient.AppsV1().Statefulsets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		if fresh.UID != set.UID {
+			return nil, fmt.Errorf("original StatefulSet %v/%v is gone: got uid %v, wanted %v", set.Namespace, set.Name, fresh.UID, set.UID)
+		}
+		return fresh, nil
+	})
+
+	cm := kubecontroller.NewPodControllerRefManager(r.podControl, set, selector, controllerKind, canAdoptFunc)
+	return cm.ClaimPods(pods, filter)
 }

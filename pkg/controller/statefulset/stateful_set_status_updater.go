@@ -37,13 +37,13 @@ type StatefulSetStatusUpdaterInterface interface {
 // NewRealStatefulSetStatusUpdater returns a StatefulSetStatusUpdaterInterface that updates the Status of a StatefulSet,
 // using the supplied client and setLister.
 func NewRealStatefulSetStatusUpdater(
-	client kromeclient.Client,
+	client *kromeclient.Client,
 	setLister kromelister.StatefulsetLister) StatefulSetStatusUpdaterInterface {
 	return &realStatefulSetStatusUpdater{client, setLister}
 }
 
 type realStatefulSetStatusUpdater struct {
-	client    kromeclient.Client
+	client    *kromeclient.Client
 	setLister kromelister.StatefulsetLister
 }
 
@@ -57,7 +57,8 @@ func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
 		if updateErr == nil {
 			return nil
 		}
-		if updated, err := ssu.setLister.Statefulsets(set.Namespace).Get(set.Name); err == nil {
+		// if updated, err := ssu.setLister.Statefulsets(set.Namespace).Get(set.Name); err == nil {
+		if updated, err := ssu.client.KromeClient.AppsV1().Statefulsets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{}); err != nil {
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()
 		} else {

@@ -243,7 +243,3 @@ type StatefulsetList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Statefulset `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&Statefulset{}, &StatefulsetList{})
-}

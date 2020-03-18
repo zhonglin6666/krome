@@ -16,10 +16,8 @@ spec:
       containers:
         - name: krome
           # Replace this with the built image name
-          image: REPLACE_IMAGE
-          command:
-          - krome
-          imagePullPolicy: Always
+          image: krome-manager:v1.0.0
+          imagePullPolicy: IfNotPresent
           env:
             - name: WATCH_NAMESPACE
               valueFrom:

@@ -36,13 +36,13 @@ type StatefulSetControlInterface interface {
 	// If an implementation returns a non-nil error, the invocation will be retried using a rate-limited strategy.
 	// Implementors should sink any errors that they do not wish to trigger a retry, and they may feel free to
 	// exit exceptionally at any point provided they wish the update to be re-run at a later point in time.
-	UpdateStatefulSet(set *apps.StatefulSet, pods []*v1.Pod) error
+	UpdateStatefulSet(set *kromev1.Statefulset, pods []*v1.Pod) error
 	// ListRevisions returns a array of the ControllerRevisions that represent the revisions of set. If the returned
 	// error is nil, the returns slice of ControllerRevisions is valid.
-	ListRevisions(set *apps.StatefulSet) ([]*apps.ControllerRevision, error)
+	ListRevisions(set *kromev1.Statefulset) ([]*apps.ControllerRevision, error)
 	// AdoptOrphanRevisions adopts any orphaned ControllerRevisions that match set's Selector. If all adoptions are
 	// successful the returned error is nil.
-	AdoptOrphanRevisions(set *apps.StatefulSet, revisions []*apps.ControllerRevision) error
+	AdoptOrphanRevisions(set *kromev1.Statefulset, revisions []*apps.ControllerRevision) error
 }
 
 // NewDefaultStatefulSetControl returns a new instance of the default implementation StatefulSetControlInterface that
@@ -81,6 +81,7 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 	history.SortControllerRevisions(revisions)
 
 	currentRevision, updateRevision, err := ssc.performUpdate(set, pods, revisions)
+	klog.Infof("  zzlin UpdateStatefulSet currentRevision： %v  updateRevision: %v", currentRevision, updateRevision)
 	if err != nil {
 		return utilerrors.NewAggregate([]error{err, ssc.truncateHistory(set, pods, revisions, currentRevision, updateRevision)})
 	}
@@ -90,7 +91,7 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 }
 
 func (ssc *defaultStatefulSetControl) performUpdate(
-	set *apps.StatefulSet, pods []*v1.Pod, revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
+	set *kromev1.Statefulset, pods []*v1.Pod, revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
 
 	// get the current, and update revisions
 	currentRevision, updateRevision, collisionCount, err := ssc.getStatefulSetRevisions(set, revisions)
@@ -110,7 +111,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		return currentRevision, updateRevision, err
 	}
 
-	klog.V(4).Infof("StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
+	klog.Infof("zzlin StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
 		set.Namespace,
 		set.Name,
 		status.Replicas,
@@ -118,7 +119,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		status.CurrentReplicas,
 		status.UpdatedReplicas)
 
-	klog.V(4).Infof("StatefulSet %s/%s revisions current=%s update=%s",
+	klog.Infof("  zzlinStatefulSet %s/%s revisions current=%s update=%s",
 		set.Namespace,
 		set.Name,
 		status.CurrentRevision,
@@ -178,7 +179,10 @@ func (ssc *defaultStatefulSetControl) truncateHistory(
 		}
 	}
 	historyLen := len(history)
-	historyLimit := int(*set.Spec.RevisionHistoryLimit)
+	historyLimit := 10
+	if set.Spec.RevisionHistoryLimit != nil {
+		historyLimit = int(*set.Spec.RevisionHistoryLimit)
+	}
 	if historyLen <= historyLimit {
 		return nil
 	}
@@ -203,6 +207,8 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, int32, error) {
 	var currentRevision, updateRevision *apps.ControllerRevision
 
+	klog.Infof("  zzlin getStatefulSetRevisions begin........")
+
 	revisionCount := len(revisions)
 	history.SortControllerRevisions(revisions)
 
@@ -218,6 +224,8 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	if err != nil {
 		return nil, nil, collisionCount, err
 	}
+
+	klog.Infof("  zzlin getStatefulSetRevisions updateRevision: %#v........", updateRevision)
 
 	// find any equivalent revisions
 	equalRevisions := history.FindEqualRevisions(revisions, updateRevision)
@@ -286,7 +294,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 
 	// set the generation, and revisions in the returned status
 	status := kromev1.StatefulsetStatus{}
-	status.ObservedGeneration = set.Generation
+	status.ObservedGeneration = &(set.Generation)
 	status.CurrentRevision = currentRevision.Name
 	status.UpdateRevision = updateRevision.Name
 	status.CollisionCount = new(int32)
