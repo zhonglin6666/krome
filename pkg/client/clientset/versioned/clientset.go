@@ -20,8 +20,8 @@ package versioned
 
 import (
 	"fmt"
+	appsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1"
 
-	appsv1 "github.com/zhonglin6666/krome/pkg/client/clientset/versioned/typed/apps/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

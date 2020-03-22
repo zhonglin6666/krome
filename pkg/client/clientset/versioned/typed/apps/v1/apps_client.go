@@ -19,8 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
-	"github.com/zhonglin6666/krome/pkg/client/clientset/versioned/scheme"
+	v1 "krome/pkg/apis/apps/v1"
+	"krome/pkg/client/clientset/versioned/scheme"
+
 	rest "k8s.io/client-go/rest"
 )
 

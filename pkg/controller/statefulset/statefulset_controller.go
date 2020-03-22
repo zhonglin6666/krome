@@ -31,9 +31,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
-	kromeclient "github.com/zhonglin6666/krome/pkg/client"
-	kromelisters "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
+	kromev1 "krome/pkg/apis/apps/v1"
+	kromeclient "krome/pkg/client"
+	kromelisters "krome/pkg/client/listers/apps/v1"
 )
 
 var (

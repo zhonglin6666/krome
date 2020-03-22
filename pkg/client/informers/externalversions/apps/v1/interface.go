@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/zhonglin6666/krome/pkg/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "krome/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

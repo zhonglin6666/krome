@@ -19,9 +19,10 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/zhonglin6666/krome/pkg/client/clientset/versioned"
-	appsv1 "github.com/zhonglin6666/krome/pkg/client/clientset/versioned/typed/apps/v1"
-	fakeappsv1 "github.com/zhonglin6666/krome/pkg/client/clientset/versioned/typed/apps/v1/fake"
+	clientset "krome/pkg/client/clientset/versioned"
+	appsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1"
+	fakeappsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1/fake"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

@@ -19,7 +19,8 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/zhonglin6666/krome/pkg/client/clientset/versioned/typed/apps/v1"
+	v1 "krome/pkg/client/clientset/versioned/typed/apps/v1"
+
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

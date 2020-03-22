@@ -19,8 +19,8 @@ limitations under the License.
 package apps
 
 import (
-	v1 "github.com/zhonglin6666/krome/pkg/client/informers/externalversions/apps/v1"
-	internalinterfaces "github.com/zhonglin6666/krome/pkg/client/informers/externalversions/internalinterfaces"
+	v1 "krome/pkg/client/informers/externalversions/apps/v1"
+	internalinterfaces "krome/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

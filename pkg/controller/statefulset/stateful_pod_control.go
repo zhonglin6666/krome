@@ -27,8 +27,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
-	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
-	kromelister "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
+	kromev1 "krome/pkg/apis/apps/v1"
+	kromelister "krome/pkg/client/listers/apps/v1"
 )
 
 // StatefulPodControlInterface defines the interface that StatefulSetController uses to create, update, and delete Pods,

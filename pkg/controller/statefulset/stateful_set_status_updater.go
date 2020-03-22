@@ -21,9 +21,9 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/retry"
 
-	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
-	kromeclient "github.com/zhonglin6666/krome/pkg/client"
-	kromelister "github.com/zhonglin6666/krome/pkg/client/listers/apps/v1"
+	kromev1 "krome/pkg/apis/apps/v1"
+	kromeclient "krome/pkg/client"
+	kromelister "krome/pkg/client/listers/apps/v1"
 )
 
 // StatefulSetStatusUpdaterInterface is an interface used to update the StatefulSetStatus associated with a StatefulSet.

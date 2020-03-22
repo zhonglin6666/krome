@@ -19,7 +19,8 @@ limitations under the License.
 package scheme
 
 import (
-	appsv1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
+	appsv1 "krome/pkg/apis/apps/v1"
+
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

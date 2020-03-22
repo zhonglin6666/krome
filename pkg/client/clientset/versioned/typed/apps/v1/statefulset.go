@@ -20,10 +20,10 @@ package v1
 
 import (
 	"context"
+	v1 "krome/pkg/apis/apps/v1"
+	scheme "krome/pkg/client/clientset/versioned/scheme"
 	"time"
 
-	v1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
-	scheme "github.com/zhonglin6666/krome/pkg/client/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

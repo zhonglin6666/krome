@@ -20,8 +20,8 @@ package fake
 
 import (
 	"context"
+	appsv1 "krome/pkg/apis/apps/v1"
 
-	appsv1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

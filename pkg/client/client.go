@@ -5,7 +5,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	kromeclient "github.com/zhonglin6666/krome/pkg/client/clientset/versioned"
+	kromeclient "krome/pkg/client/clientset/versioned"
 )
 
 // Client defines a client with kubernetes and krome client

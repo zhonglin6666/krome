@@ -25,7 +25,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/controller/history"
 
-	kromev1 "github.com/zhonglin6666/krome/pkg/apis/apps/v1"
+	kromev1 "krome/pkg/apis/apps/v1"
 )
 
 // StatefulSetControl implements the control logic for updating StatefulSets and their children Pods. It is implemented

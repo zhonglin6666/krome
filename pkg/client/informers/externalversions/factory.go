@@ -19,13 +19,13 @@ limitations under the License.
 package externalversions
 
 import (
+	versioned "krome/pkg/client/clientset/versioned"
+	apps "krome/pkg/client/informers/externalversions/apps"
+	internalinterfaces "krome/pkg/client/informers/externalversions/internalinterfaces"
 	reflect "reflect"
 	sync "sync"
 	time "time"
 
-	versioned "github.com/zhonglin6666/krome/pkg/client/clientset/versioned"
-	apps "github.com/zhonglin6666/krome/pkg/client/informers/externalversions/apps"
-	internalinterfaces "github.com/zhonglin6666/krome/pkg/client/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
