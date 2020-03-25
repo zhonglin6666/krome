@@ -18,12 +18,11 @@ import (
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/history"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -33,7 +32,6 @@ import (
 
 	kromev1 "krome/pkg/apis/apps/v1"
 	kromeclient "krome/pkg/client"
-	kromelisters "krome/pkg/client/listers/apps/v1"
 )
 
 var (
@@ -65,13 +63,6 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
-	// TODO cache
-	// cacher := mgr.GetCache()
-	//statefulsetInformer, err := cacher.GetInformerForKind(controllerKind)
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	kromeClient, err := kromeclient.NewClient(mgr)
 	if err != nil {
 		return nil, err
@@ -84,7 +75,7 @@ func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := make(chan struct{})
-	k8sInformerFactory.Start(stopCh)
+	go k8sInformerFactory.Start(stopCh)
 
 	return newReconcileStatefulset(
 		mgr,
@@ -130,16 +121,8 @@ type ReconcileStatefulset struct {
 	scheme      *runtime.Scheme
 	kromeClient *kromeclient.Client
 
-	control StatefulSetControlInterface
-
+	control    StatefulSetControlInterface
 	podControl kubecontroller.PodControlInterface
-	// podLister is able to list/get pods from a shared informer's store
-	podLister corelisters.PodLister
-	// podListerSynced returns true if the pod shared informer has synced at least once
-	podListerSynced cache.InformerSynced
-
-	// setLister is able to list/get stateful sets from a shared informer's store
-	setLister kromelisters.StatefulsetLister
 }
 
 func newReconcileStatefulset(
@@ -161,7 +144,7 @@ func newReconcileStatefulset(
 		control: NewDefaultStatefulSetControl(
 			NewRealStatefulPodControl(
 				kromeClient.K8sClient,
-				// setInformer.Lister(),
+				mgr,
 				podInformer.Lister(),
 				pvcInformer.Lister(),
 				recorder,
@@ -177,7 +160,6 @@ func newReconcileStatefulset(
 			KubeClient: kromeClient.K8sClient,
 			Recorder:   recorder,
 		},
-		podLister: podInformer.Lister(),
 	}
 
 	return r
@@ -185,11 +167,11 @@ func newReconcileStatefulset(
 
 // syncStatefulset syncs a tuple of (statefulset, []*v1.Pod).
 func (r *ReconcileStatefulset) syncStatefulset(set *kromev1.Statefulset, pods []*corev1.Pod) error {
-	klog.Infof("  zzlin Syncing Statefulset %v/%v with %d pods", set.Namespace, set.Name, len(pods))
+	klog.Infof("Syncing Statefulset %v/%v with %d pods", set.Namespace, set.Name, len(pods))
 	if err := r.control.UpdateStatefulSet(set.DeepCopy(), pods); err != nil {
 		return err
 	}
-	klog.Infof("  zzlin Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
+	klog.Infof("Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
 	return nil
 }
 
@@ -218,8 +200,6 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("zzlin Reconcile set", set.Name)
-
 	selector, err := metav1.LabelSelectorAsSelector(set.Spec.Selector)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("error converting StatefulSet %v selector: %v", request.String(), err))
@@ -237,31 +217,6 @@ func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.R
 	}
 
 	return reconcile.Result{}, r.syncStatefulset(set, pods)
-
-	//// Set Statefulset instance as the owner and controller
-	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-	//	return reconcile.Result{}, err
-	//}
-	//
-	//// Check if this Pod already exists
-	//found := &corev1.Pod{}
-	//err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	//if err != nil && errors.IsNotFound(err) {
-	//	reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-	//	err = r.client.Create(context.TODO(), pod)
-	//	if err != nil {
-	//		return reconcile.Result{}, err
-	//	}
-	//
-	//	// Pod created successfully - don't requeue
-	//	return reconcile.Result{}, nil
-	//} else if err != nil {
-	//	return reconcile.Result{}, err
-	//}
-	//
-	//// Pod already exists - don't requeue
-	//reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
-	// return reconcile.Result{}, nil
 }
 
 // adoptOrphanRevisions adopts any orphaned ControllerRevisions matched by set's Selector.
@@ -298,8 +253,8 @@ func (r *ReconcileStatefulset) adoptOrphanRevisions(set *kromev1.Statefulset) er
 func (r *ReconcileStatefulset) getPodsForStatefulSet(set *kromev1.Statefulset, selector labels.Selector) ([]*corev1.Pod, error) {
 	// List all pods to include the pods that don't match the selector anymore but
 	// has a ControllerRef pointing to this StatefulSet.
-	pods, err := r.podLister.Pods(set.Namespace).List(labels.Everything())
-	if err != nil {
+	var pods = corev1.PodList{}
+	if err := r.mgr.GetClient().List(context.TODO(), &pods, &client.ListOptions{LabelSelector: selector}); err != nil {
 		return nil, err
 	}
 
@@ -321,6 +276,11 @@ func (r *ReconcileStatefulset) getPodsForStatefulSet(set *kromev1.Statefulset, s
 		return fresh, nil
 	})
 
+	items := make([]*corev1.Pod, len(pods.Items))
+	for i, p := range pods.Items {
+		items[i] = p.DeepCopy()
+	}
+
 	cm := kubecontroller.NewPodControllerRefManager(r.podControl, set, selector, controllerKind, canAdoptFunc)
-	return cm.ClaimPods(pods, filter)
+	return cm.ClaimPods(items, filter)
 }

@@ -1,0 +1,27 @@
+apiVersion: apps.krome.io/v1
+kind: Statefulset
+metadata:
+  name: statefulset-example
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: statefulset-example
+  template:
+    metadata:
+      labels:
+        app: statefulset-example
+    spec:
+      containers:
+      - name: statefulset-example
+        image: nginx:1.13
+        imagePullPolicy: IfNotPresent
+      ReadinessGates:
+      - conditionType: InPlaceUpdateReady
+  PodManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      podUpdatePolicy: InPlaceIfPossible
+      maxUnavailable: 1
+      partition: 0

@@ -43,13 +43,13 @@ type StatefulsetSpec struct {
 	// If empty, defaulted to labels on the pod template.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
 	// +optional
-	Selector *metav1.LabelSelector
+	Selector *metav1.LabelSelector `json:"selector"`
 
 	// Template is the object that describes the pod that will be created if
 	// insufficient replicas are detected. Each pod stamped out by the StatefulSet
 	// will fulfill this Template, but have a unique identity from the rest
 	// of the StatefulSet.
-	Template corev1.PodTemplateSpec
+	Template corev1.PodTemplateSpec `json:"template"`
 
 	// VolumeClaimTemplates is a list of claims that pods are allowed to reference.
 	// The StatefulSet controller is responsible for mapping network identities to
@@ -59,14 +59,14 @@ type StatefulsetSpec struct {
 	// any volumes in the template, with the same name.
 	// TODO: Define the behavior if a claim already exists with the same name.
 	// +optional
-	VolumeClaimTemplates []corev1.PersistentVolumeClaim
+	VolumeClaimTemplates []corev1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 
 	// ServiceName is the name of the service that governs this StatefulSet.
 	// This service must exist before the StatefulSet, and is responsible for
 	// the network identity of the set. Pods get DNS/hostnames that follow the
 	// pattern: pod-specific-string.serviceName.default.svc.cluster.local
 	// where "pod-specific-string" is managed by the StatefulSet controller.
-	ServiceName string
+	ServiceName string `json:"serviceName,omitempty"`
 
 	// PodManagementPolicy controls how pods are created during initial scale up,
 	// when replacing pods on nodes, or when scaling down. The default policy is
@@ -77,18 +77,18 @@ type StatefulsetSpec struct {
 	// to match the desired scale without waiting, and on scale down will delete
 	// all pods at once.
 	// +optional
-	PodManagementPolicy appsv1.PodManagementPolicyType
+	PodManagementPolicy appsv1.PodManagementPolicyType `json:"podManagementPolicy,omitempty"`
 
 	// updateStrategy indicates the StatefulSetUpdateStrategy that will be
 	// employed to update Pods in the StatefulSet when a revision is made to
 	// Template.
-	UpdateStrategy StatefulSetUpdateStrategy
+	UpdateStrategy StatefulSetUpdateStrategy `json:"updateStrategy,omitempty"`
 
 	// revisionHistoryLimit is the maximum number of revisions that will
 	// be maintained in the StatefulSet's revision history. The revision history
 	// consists of all revisions not represented by a currently applied
 	// StatefulSetSpec version. The default value is 10.
-	RevisionHistoryLimit *int32
+	RevisionHistoryLimit *int32 `json:"revisionHistoryLimit,omitempty"`
 }
 
 // StatefulSetUpdateStrategy indicates the strategy that the StatefulSet
@@ -187,44 +187,46 @@ type StatefulsetStatus struct {
 	// observedGeneration is the most recent generation observed for this StatefulSet. It corresponds to the
 	// StatefulSet's generation, which is updated on mutation by the API Server.
 	// +optional
-	ObservedGeneration *int64
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// replicas is the number of Pods created by the StatefulSet controller.
-	Replicas int32
+	Replicas int32 `json:"readyReplicas"`
 
 	// readyReplicas is the number of Pods created by the StatefulSet controller that have a Ready Condition.
-	ReadyReplicas int32
+	ReadyReplicas int32 `json:"readyReplicas"`
 
 	// currentReplicas is the number of Pods created by the StatefulSet controller from the StatefulSet version
 	// indicated by currentRevision.
-	CurrentReplicas int32
+	CurrentReplicas int32 `json:"currentReplicas"`
 
 	// updatedReplicas is the number of Pods created by the StatefulSet controller from the StatefulSet version
 	// indicated by updateRevision.
-	UpdatedReplicas int32
+	UpdatedReplicas int32 `json:"updatedReplicas"`
 
 	// currentRevision, if not empty, indicates the version of the StatefulSet used to generate Pods in the
 	// sequence [0,currentReplicas).
-	CurrentRevision string
+	CurrentRevision string `json:"currentRevision,omitempty"`
 
 	// updateRevision, if not empty, indicates the version of the StatefulSet used to generate Pods in the sequence
 	// [replicas-updatedReplicas,replicas)
-	UpdateRevision string
+	UpdateRevision string `json:"updateRevision,omitempty"`
 
 	// collisionCount is the count of hash collisions for the StatefulSet. The StatefulSet controller
 	// uses this field as a collision avoidance mechanism when it needs to create the name for the
 	// newest ControllerRevision.
 	// +optional
-	CollisionCount *int32
+	CollisionCount *int32 `json:"collisionCount,omitempty"`
 
 	// Represents the latest available observations of a statefulset's current state.
-	Conditions []appsv1.StatefulSetCondition
+	Conditions []appsv1.StatefulSetCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Statefulset is the Schema for the statefulsets API
+// +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=statefulsets,scope=Namespaced
 type Statefulset struct {

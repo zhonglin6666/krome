@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,9 +27,10 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kromev1 "krome/pkg/apis/apps/v1"
-	kromelister "krome/pkg/client/listers/apps/v1"
+	kromeutil "krome/pkg/utils/inplaceupdate"
 )
 
 // StatefulPodControlInterface defines the interface that StatefulSetController uses to create, update, and delete Pods,
@@ -47,23 +49,25 @@ type StatefulPodControlInterface interface {
 	// DeleteStatefulPod deletes a Pod in a StatefulSet. The pods PVCs are not deleted. If the delete is successful,
 	// the returned error is nil.
 	DeleteStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+
+	InPlcateUpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod, oldRevision, newRevision *appsv1.ControllerRevision) error
 }
 
 func NewRealStatefulPodControl(
 	client clientset.Interface,
-	// setLister kromelister.StatefulsetLister,
+	mgr manager.Manager,
 	podLister corelisters.PodLister,
 	pvcLister corelisters.PersistentVolumeClaimLister,
 	recorder record.EventRecorder,
 ) StatefulPodControlInterface {
-	return &realStatefulPodControl{client, nil, podLister, pvcLister, recorder}
+	return &realStatefulPodControl{client, mgr, podLister, pvcLister, recorder}
 }
 
 // realStatefulPodControl implements StatefulPodControlInterface using a clientset.Interface to communicate with the
 // API server. The struct is package private as the internal details are irrelevant to importing packages.
 type realStatefulPodControl struct {
 	client    clientset.Interface
-	setLister kromelister.StatefulsetLister
+	mgr       manager.Manager
 	podLister corelisters.PodLister
 	pvcLister corelisters.PersistentVolumeClaimLister
 	recorder  record.EventRecorder
@@ -195,6 +199,27 @@ func (spc *realStatefulPodControl) createPersistentVolumeClaims(set *kromev1.Sta
 		// TODO: Check resource requirements and accessmodes, update if necessary
 	}
 	return errorutils.NewAggregate(errs)
+}
+
+func (spc *realStatefulPodControl) InPlcateUpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod,
+	oldRevision, newRevision *appsv1.ControllerRevision) error {
+	// make inplace update pod spec
+	spec := kromeutil.CalculateInPlaceUpdateSpec(oldRevision, newRevision)
+	if spec == nil {
+		return fmt.Errorf("inplace update statefulset pod spec is nil")
+	}
+
+	// update condition
+	if err := kromeutil.UpdateCondition(spc.mgr, pod); err != nil {
+		return err
+	}
+
+	// update image or other info
+	if err := kromeutil.UpdatePodInPlate(spc.mgr, pod.Namespace, pod.Name, spec); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 var _ StatefulPodControlInterface = &realStatefulPodControl{}

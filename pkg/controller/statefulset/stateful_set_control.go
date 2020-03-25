@@ -81,7 +81,6 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 	history.SortControllerRevisions(revisions)
 
 	currentRevision, updateRevision, err := ssc.performUpdate(set, pods, revisions)
-	klog.Infof("  zzlin UpdateStatefulSet currentRevision： %v  updateRevision: %v", currentRevision, updateRevision)
 	if err != nil {
 		return utilerrors.NewAggregate([]error{err, ssc.truncateHistory(set, pods, revisions, currentRevision, updateRevision)})
 	}
@@ -100,7 +99,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 	}
 
 	// perform the main update function and get the status
-	status, err := ssc.updateStatefulSet(set, currentRevision, updateRevision, collisionCount, pods)
+	status, err := ssc.updateStatefulSet(set, currentRevision, updateRevision, collisionCount, pods, revisions)
 	if err != nil {
 		return currentRevision, updateRevision, err
 	}
@@ -207,8 +206,6 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, int32, error) {
 	var currentRevision, updateRevision *apps.ControllerRevision
 
-	klog.Infof("  zzlin getStatefulSetRevisions begin........")
-
 	revisionCount := len(revisions)
 	history.SortControllerRevisions(revisions)
 
@@ -224,8 +221,6 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	if err != nil {
 		return nil, nil, collisionCount, err
 	}
-
-	klog.Infof("  zzlin getStatefulSetRevisions updateRevision: %#v........", updateRevision)
 
 	// find any equivalent revisions
 	equalRevisions := history.FindEqualRevisions(revisions, updateRevision)
@@ -281,7 +276,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	currentRevision *apps.ControllerRevision,
 	updateRevision *apps.ControllerRevision,
 	collisionCount int32,
-	pods []*v1.Pod) (*kromev1.StatefulsetStatus, error) {
+	pods []*v1.Pod,
+	revisions []*apps.ControllerRevision) (*kromev1.StatefulsetStatus, error) {
 	// get the current and update revisions of the set.
 	currentSet, err := ApplyRevision(set, currentRevision)
 	if err != nil {
@@ -294,7 +290,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 
 	// set the generation, and revisions in the returned status
 	status := kromev1.StatefulsetStatus{}
-	status.ObservedGeneration = &(set.Generation)
+	status.ObservedGeneration = set.Generation
 	status.CurrentRevision = currentRevision.Name
 	status.UpdateRevision = updateRevision.Name
 	status.CollisionCount = new(int32)
@@ -522,6 +518,22 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
+	//maxUnavailable := 1
+	//if set.Spec.UpdateStrategy.RollingUpdate != nil {
+	//	maxUnavailable, err =  intstrutil.GetValueFromIntOrPercent(intstrutil.ValueOrDefault(
+	//		set.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable, intstrutil.FromInt(1)), replicaCount, false)
+	//	if err != nil {
+	//		return &status, err
+	//	}
+	//	if set.Spec.UpdateStrategy.RollingUpdate.Paused {
+	//		return &status, err
+	//	}
+	//}
+	//
+	//var unavailablePods []string
+	//upd
+
+	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
 	updateMin := 0
 	if set.Spec.UpdateStrategy.RollingUpdate != nil {
 		updateMin = int(*set.Spec.UpdateStrategy.RollingUpdate.Partition)
@@ -535,7 +547,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 				set.Namespace,
 				set.Name,
 				replicas[target].Name)
-			err := ssc.podControl.DeleteStatefulPod(set, replicas[target])
+			// err := ssc.podControl.DeleteStatefulPod(set, replicas[target])
+			_, err := ssc.inPlaceUpdatePod(set, replicas[target], updateRevision, revisions)
 			status.CurrentReplicas--
 			return &status, err
 		}
@@ -576,6 +589,40 @@ func (ssc *defaultStatefulSetControl) updateStatefulSetStatus(
 	}
 
 	return nil
+}
+
+func (ssc *defaultStatefulSetControl) inPlaceUpdatePod(
+	set *kromev1.Statefulset,
+	pod *v1.Pod,
+	updateRevision *apps.ControllerRevision,
+	revisions []*apps.ControllerRevision) (bool, error) {
+	if set.Spec.UpdateStrategy.RollingUpdate == nil {
+		return false, nil
+	}
+	if set.Spec.UpdateStrategy.RollingUpdate.PodUpdatePolicy != kromev1.InPlaceIfPossiblePodUpdateStrategyType {
+		return false, nil
+	}
+
+	var oldRevision *apps.ControllerRevision
+	for _, r := range revisions {
+		if r.Name == getPodRevision(pod) {
+			oldRevision = r
+			break
+		}
+	}
+
+	if err := ssc.podControl.InPlcateUpdateStatefulPod(set, pod, oldRevision, updateRevision); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func sortPodsToUpdate(rolling *kromev1.RollingUpdateStatefulSetStrategy, updateRevision string, pods []*v1.Pod) []int {
+	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
+	//updateMin := 0
+	//var ups *kromev1.UpdatePriorityStrategy
+	return []int{}
 }
 
 var _ StatefulSetControlInterface = &defaultStatefulSetControl{}
