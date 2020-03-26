@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/informers"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
 	appsinformers "k8s.io/client-go/informers/apps/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -99,9 +98,17 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO(user): Modify this to be the types you create that are owned by the primary resource
-	// Watch for changes to secondary resource Pods and requeue the owner Statefulset
+	// Watch for changes to resource Pods and requeue the owner Statefulset
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &kromev1.Statefulset{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to resource ControllerRevisions and requeue the owner Statefulset
+	err = c.Watch(&source.Kind{Type: &appsv1.ControllerRevision{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &kromev1.Statefulset{},
 	})
@@ -128,7 +135,6 @@ type ReconcileStatefulset struct {
 func newReconcileStatefulset(
 	mgr manager.Manager,
 	podInformer coreinformers.PodInformer,
-	//setInformer kromeinformers.StatefulsetInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	revInformer appsinformers.ControllerRevisionInformer,
 	kromeClient *kromeclient.Client,
@@ -155,6 +161,7 @@ func newReconcileStatefulset(
 			),
 			history.NewHistory(kromeClient.K8sClient, revInformer.Lister()),
 			recorder,
+			mgr,
 		),
 		podControl: kubecontroller.RealPodControl{
 			KubeClient: kromeClient.K8sClient,
@@ -177,9 +184,6 @@ func (r *ReconcileStatefulset) syncStatefulset(set *kromev1.Statefulset, pods []
 
 // Reconcile reads that state of the cluster for a Statefulset object and makes changes based on the state read
 // and what is in the Statefulset.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
-// Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.Result, error) {

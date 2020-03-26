@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"k8s.io/klog"
 	"regexp"
 	"strconv"
 
@@ -362,8 +361,6 @@ func nextRevision(revisions []*apps.ControllerRevision) int64 {
 // inconsistentStatus returns true if the ObservedGeneration of status is greater than set's
 // Generation or if any of the status's fields do not match those of set's status.
 func inconsistentStatus(set *kromev1.Statefulset, status *kromev1.StatefulsetStatus) bool {
-	klog.Infof("============ inconsistentStatus set: %#v", set.Status)
-	klog.Infof("============ inconsistentStatus status: %#v", status)
 	return status.ObservedGeneration > set.Status.ObservedGeneration ||
 		status.Replicas != set.Status.Replicas ||
 		status.CurrentReplicas != set.Status.CurrentReplicas ||

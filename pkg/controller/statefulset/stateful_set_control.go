@@ -14,7 +14,10 @@ limitations under the License.
 package statefulset
 
 import (
+	"context"
 	"math"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sort"
 
 	apps "k8s.io/api/apps/v1"
@@ -37,9 +40,11 @@ type StatefulSetControlInterface interface {
 	// Implementors should sink any errors that they do not wish to trigger a retry, and they may feel free to
 	// exit exceptionally at any point provided they wish the update to be re-run at a later point in time.
 	UpdateStatefulSet(set *kromev1.Statefulset, pods []*v1.Pod) error
+
 	// ListRevisions returns a array of the ControllerRevisions that represent the revisions of set. If the returned
 	// error is nil, the returns slice of ControllerRevisions is valid.
 	ListRevisions(set *kromev1.Statefulset) ([]*apps.ControllerRevision, error)
+
 	// AdoptOrphanRevisions adopts any orphaned ControllerRevisions that match set's Selector. If all adoptions are
 	// successful the returned error is nil.
 	AdoptOrphanRevisions(set *kromev1.Statefulset, revisions []*apps.ControllerRevision) error
@@ -54,8 +59,15 @@ func NewDefaultStatefulSetControl(
 	podControl StatefulPodControlInterface,
 	statusUpdater StatefulSetStatusUpdaterInterface,
 	controllerHistory history.Interface,
-	recorder record.EventRecorder) StatefulSetControlInterface {
-	return &defaultStatefulSetControl{podControl, statusUpdater, controllerHistory, recorder}
+	recorder record.EventRecorder,
+	mgr manager.Manager) StatefulSetControlInterface {
+	return &defaultStatefulSetControl{
+		podControl:        podControl,
+		statusUpdater:     statusUpdater,
+		controllerHistory: controllerHistory,
+		recorder:          recorder,
+		mgr:               mgr,
+	}
 }
 
 type defaultStatefulSetControl struct {
@@ -63,6 +75,7 @@ type defaultStatefulSetControl struct {
 	statusUpdater     StatefulSetStatusUpdaterInterface
 	controllerHistory history.Interface
 	recorder          record.EventRecorder
+	mgr               manager.Manager
 }
 
 // UpdateStatefulSet executes the core logic loop for a stateful set, applying the predictable and
@@ -72,13 +85,14 @@ type defaultStatefulSetControl struct {
 // in no particular order. Clients using the burst strategy should be careful to ensure they
 // understand the consistency implications of having unpredictable numbers of pods available.
 func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset, pods []*v1.Pod) error {
-
 	// list all revisions and sort them
 	revisions, err := ssc.ListRevisions(set)
 	if err != nil {
 		return err
 	}
 	history.SortControllerRevisions(revisions)
+
+	klog.Infof("zzlin UpdateStatefulSet revisions: %#v  n: %v", revisions, len(revisions))
 
 	currentRevision, updateRevision, err := ssc.performUpdate(set, pods, revisions)
 	if err != nil {
@@ -110,7 +124,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		return currentRevision, updateRevision, err
 	}
 
-	klog.Infof("zzlin StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
+	klog.Infof("StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
 		set.Namespace,
 		set.Name,
 		status.Replicas,
@@ -118,7 +132,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		status.CurrentReplicas,
 		status.UpdatedReplicas)
 
-	klog.Infof("  zzlinStatefulSet %s/%s revisions current=%s update=%s",
+	klog.Infof("StatefulSet %s/%s revisions current=%s update=%s",
 		set.Namespace,
 		set.Name,
 		status.CurrentRevision,
@@ -132,7 +146,17 @@ func (ssc *defaultStatefulSetControl) ListRevisions(set *kromev1.Statefulset) ([
 	if err != nil {
 		return nil, err
 	}
-	return ssc.controllerHistory.ListControllerRevisions(set, selector)
+
+	var crs apps.ControllerRevisionList
+	if err := ssc.mgr.GetClient().List(context.TODO(), &crs, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return nil, err
+	}
+
+	var ret = make([]*apps.ControllerRevision, len(crs.Items))
+	for i, cv := range crs.Items {
+		ret[i] = cv.DeepCopy()
+	}
+	return ret, nil
 }
 
 func (ssc *defaultStatefulSetControl) AdoptOrphanRevisions(
@@ -188,7 +212,8 @@ func (ssc *defaultStatefulSetControl) truncateHistory(
 	// delete any non-live history to maintain the revision limit.
 	history = history[:(historyLen - historyLimit)]
 	for i := 0; i < len(history); i++ {
-		if err := ssc.controllerHistory.DeleteControllerRevision(history[i]); err != nil {
+		// if err := ssc.controllerHistory.DeleteControllerRevision(history[i]); err != nil {
+		if err := ssc.mgr.GetClient().Delete(context.TODO(), history[i], &client.DeleteOptions{}); err != nil {
 			return err
 		}
 	}
@@ -540,7 +565,6 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 	// we terminate the Pod with the largest ordinal that does not match the update revision.
 	for target := len(replicas) - 1; target >= updateMin; target-- {
-
 		// delete the Pod if it is not already terminating and does not match the update revision.
 		if getPodRevision(replicas[target]) != updateRevision.Name && !isTerminating(replicas[target]) {
 			klog.V(2).Infof("StatefulSet %s/%s terminating Pod %s for update",
