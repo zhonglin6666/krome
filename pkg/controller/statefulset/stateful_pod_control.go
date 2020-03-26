@@ -14,6 +14,7 @@ limitations under the License.
 package statefulset
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -21,10 +22,10 @@ import (
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	errorutils "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientset "k8s.io/client-go/kubernetes"
-	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -41,11 +42,13 @@ type StatefulPodControlInterface interface {
 	// CreateStatefulPod create a Pod in a StatefulSet. Any PVCs necessary for the Pod are created prior to creating
 	// the Pod. If the returned error is nil the Pod and its PVCs have been created.
 	CreateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+
 	// UpdateStatefulPod Updates a Pod in a StatefulSet. If the Pod already has the correct identity and stable
 	// storage this method is a no-op. If the Pod must be mutated to conform to the Set, it is mutated and updated.
 	// pod is an in-out parameter, and any updates made to the pod are reflected as mutations to this parameter. If
 	// the create is successful, the returned error is nil.
 	UpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+
 	// DeleteStatefulPod deletes a Pod in a StatefulSet. The pods PVCs are not deleted. If the delete is successful,
 	// the returned error is nil.
 	DeleteStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
@@ -56,21 +59,17 @@ type StatefulPodControlInterface interface {
 func NewRealStatefulPodControl(
 	client clientset.Interface,
 	mgr manager.Manager,
-	podLister corelisters.PodLister,
-	pvcLister corelisters.PersistentVolumeClaimLister,
 	recorder record.EventRecorder,
 ) StatefulPodControlInterface {
-	return &realStatefulPodControl{client, mgr, podLister, pvcLister, recorder}
+	return &realStatefulPodControl{client, mgr, recorder}
 }
 
 // realStatefulPodControl implements StatefulPodControlInterface using a clientset.Interface to communicate with the
 // API server. The struct is package private as the internal details are irrelevant to importing packages.
 type realStatefulPodControl struct {
-	client    clientset.Interface
-	mgr       manager.Manager
-	podLister corelisters.PodLister
-	pvcLister corelisters.PersistentVolumeClaimLister
-	recorder  record.EventRecorder
+	client   clientset.Interface
+	mgr      manager.Manager
+	recorder record.EventRecorder
 }
 
 func (spc *realStatefulPodControl) CreateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error {
@@ -121,7 +120,8 @@ func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.Statefulset, p
 			return nil
 		}
 
-		if updated, err := spc.podLister.Pods(set.Namespace).Get(pod.Name); err == nil {
+		var updated = &v1.Pod{}
+		if err := spc.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err == nil {
 			// make a copy so we don't mutate the shared cache
 			pod = updated.DeepCopy()
 		} else {
@@ -182,7 +182,8 @@ func (spc *realStatefulPodControl) recordClaimEvent(verb string, set *kromev1.St
 func (spc *realStatefulPodControl) createPersistentVolumeClaims(set *kromev1.Statefulset, pod *v1.Pod) error {
 	var errs []error
 	for _, claim := range getPersistentVolumeClaims(set, pod) {
-		_, err := spc.pvcLister.PersistentVolumeClaims(claim.Namespace).Get(claim.Name)
+		var pvc = &v1.PersistentVolumeClaim{}
+		err := spc.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, pvc)
 		switch {
 		case apierrors.IsNotFound(err):
 			_, err := spc.client.CoreV1().PersistentVolumeClaims(claim.Namespace).Create(&claim)

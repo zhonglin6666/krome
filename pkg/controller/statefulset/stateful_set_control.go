@@ -16,17 +16,19 @@ package statefulset
 import (
 	"context"
 	"math"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sort"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/controller/history"
+	"krome/pkg/utils/inplaceupdate"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kromev1 "krome/pkg/apis/apps/v1"
 )
@@ -58,24 +60,22 @@ type StatefulSetControlInterface interface {
 func NewDefaultStatefulSetControl(
 	podControl StatefulPodControlInterface,
 	statusUpdater StatefulSetStatusUpdaterInterface,
-	controllerHistory history.Interface,
 	recorder record.EventRecorder,
 	mgr manager.Manager) StatefulSetControlInterface {
 	return &defaultStatefulSetControl{
-		podControl:        podControl,
-		statusUpdater:     statusUpdater,
-		controllerHistory: controllerHistory,
-		recorder:          recorder,
-		mgr:               mgr,
+		podControl:    podControl,
+		statusUpdater: statusUpdater,
+		recorder:      recorder,
+		mgr:           mgr,
 	}
 }
 
 type defaultStatefulSetControl struct {
-	podControl        StatefulPodControlInterface
-	statusUpdater     StatefulSetStatusUpdaterInterface
-	controllerHistory history.Interface
-	recorder          record.EventRecorder
-	mgr               manager.Manager
+	podControl    StatefulPodControlInterface
+	statusUpdater StatefulSetStatusUpdaterInterface
+	recorder      record.EventRecorder
+	mgr           manager.Manager
+	client        clientset.Interface
 }
 
 // UpdateStatefulSet executes the core logic loop for a stateful set, applying the predictable and
@@ -90,9 +90,7 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 	if err != nil {
 		return err
 	}
-	history.SortControllerRevisions(revisions)
-
-	klog.Infof("zzlin UpdateStatefulSet revisions: %#v  n: %v", revisions, len(revisions))
+	inplaceupdate.SortControllerRevisions(revisions)
 
 	currentRevision, updateRevision, err := ssc.performUpdate(set, pods, revisions)
 	if err != nil {
@@ -163,7 +161,7 @@ func (ssc *defaultStatefulSetControl) AdoptOrphanRevisions(
 	set *kromev1.Statefulset,
 	revisions []*apps.ControllerRevision) error {
 	for i := range revisions {
-		adopted, err := ssc.controllerHistory.AdoptControllerRevision(set, controllerKind, revisions[i])
+		adopted, err := inplaceupdate.AdoptControllerRevision(ssc.client, set, controllerKind, revisions[i])
 		if err != nil {
 			return err
 		}
@@ -232,7 +230,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	var currentRevision, updateRevision *apps.ControllerRevision
 
 	revisionCount := len(revisions)
-	history.SortControllerRevisions(revisions)
+	inplaceupdate.SortControllerRevisions(revisions)
 
 	// Use a local copy of set.Status.CollisionCount to avoid modifying set.Status directly.
 	// This copy is returned so the value gets carried over to set.Status in updateStatefulSet.
@@ -257,7 +255,8 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 	} else if equalCount > 0 {
 		// if the equivalent revision is not immediately prior we will roll back by incrementing the
 		// Revision of the equivalent revision
-		updateRevision, err = ssc.controllerHistory.UpdateControllerRevision(
+		updateRevision, err = inplaceupdate.UpdateControllerRevision(
+			ssc.mgr,
 			equalRevisions[equalCount-1],
 			updateRevision.Revision)
 		if err != nil {
@@ -265,7 +264,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 		}
 	} else {
 		//if there is no equivalent revision we create a new one
-		updateRevision, err = ssc.controllerHistory.CreateControllerRevision(set, updateRevision, &collisionCount)
+		updateRevision, err = inplaceupdate.CreateControllerRevision(ssc.mgr, ssc.client, set, updateRevision, &collisionCount)
 		if err != nil {
 			return nil, nil, collisionCount, err
 		}
@@ -640,13 +639,6 @@ func (ssc *defaultStatefulSetControl) inPlaceUpdatePod(
 	}
 
 	return true, nil
-}
-
-func sortPodsToUpdate(rolling *kromev1.RollingUpdateStatefulSetStrategy, updateRevision string, pods []*v1.Pod) []int {
-	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
-	//updateMin := 0
-	//var ups *kromev1.UpdatePriorityStrategy
-	return []int{}
 }
 
 var _ StatefulSetControlInterface = &defaultStatefulSetControl{}

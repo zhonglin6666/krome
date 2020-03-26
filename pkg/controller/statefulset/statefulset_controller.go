@@ -3,8 +3,6 @@ package statefulset
 import (
 	"context"
 	"fmt"
-	"time"
-
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -12,15 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/informers"
-	appsinformers "k8s.io/client-go/informers/apps/v1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
-	"k8s.io/kubernetes/pkg/controller/history"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -38,10 +32,6 @@ var (
 
 	// controllerKind contains the schema.GroupVersionKind for statefulset type.
 	controllerKind = kromev1.SchemeGroupVersion.WithKind("Statefulset")
-
-	podKind                = corev1.SchemeGroupVersion.WithKind("Pod")
-	pvcKind                = corev1.SchemeGroupVersion.WithKind("PersistentVolumeClaim")
-	controllerRevisionKind = appsv1.SchemeGroupVersion.WithKind("ControllerRevision")
 )
 
 /**
@@ -67,21 +57,25 @@ func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 		return nil, err
 	}
 
-	k8sInformerFactory := informers.NewSharedInformerFactory(kromeClient.K8sClient, time.Second*30)
-	podInformer := k8sInformerFactory.Core().V1().Pods()
-	pvcInformer := k8sInformerFactory.Core().V1().PersistentVolumeClaims()
-	revInformer := k8sInformerFactory.Apps().V1().ControllerRevisions()
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
+	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
 
-	// set up signals so we handle the first shutdown signal gracefully
-	stopCh := make(chan struct{})
-	go k8sInformerFactory.Start(stopCh)
-
-	return newReconcileStatefulset(
-		mgr,
-		podInformer,
-		pvcInformer,
-		revInformer,
-		kromeClient), nil
+	return &ReconcileStatefulset{
+		mgr:         mgr,
+		kromeClient: kromeClient,
+		control: NewDefaultStatefulSetControl(
+			NewRealStatefulPodControl(kromeClient.K8sClient, mgr, recorder),
+			NewRealStatefulSetStatusUpdater(kromeClient, mgr),
+			recorder,
+			mgr,
+		),
+		podControl: kubecontroller.RealPodControl{
+			KubeClient: kromeClient.K8sClient,
+			Recorder:   recorder,
+		},
+	}, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -130,46 +124,6 @@ type ReconcileStatefulset struct {
 
 	control    StatefulSetControlInterface
 	podControl kubecontroller.PodControlInterface
-}
-
-func newReconcileStatefulset(
-	mgr manager.Manager,
-	podInformer coreinformers.PodInformer,
-	pvcInformer coreinformers.PersistentVolumeClaimInformer,
-	revInformer appsinformers.ControllerRevisionInformer,
-	kromeClient *kromeclient.Client,
-) *ReconcileStatefulset {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
-
-	r := &ReconcileStatefulset{
-		mgr:         mgr,
-		kromeClient: kromeClient,
-		control: NewDefaultStatefulSetControl(
-			NewRealStatefulPodControl(
-				kromeClient.K8sClient,
-				mgr,
-				podInformer.Lister(),
-				pvcInformer.Lister(),
-				recorder,
-			),
-			NewRealStatefulSetStatusUpdater(
-				kromeClient,
-				nil,
-			),
-			history.NewHistory(kromeClient.K8sClient, revInformer.Lister()),
-			recorder,
-			mgr,
-		),
-		podControl: kubecontroller.RealPodControl{
-			KubeClient: kromeClient.K8sClient,
-			Recorder:   recorder,
-		},
-	}
-
-	return r
 }
 
 // syncStatefulset syncs a tuple of (statefulset, []*v1.Pod).

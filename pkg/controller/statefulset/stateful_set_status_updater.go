@@ -16,6 +16,8 @@ package statefulset
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -23,7 +25,6 @@ import (
 
 	kromev1 "krome/pkg/apis/apps/v1"
 	kromeclient "krome/pkg/client"
-	kromelister "krome/pkg/client/listers/apps/v1"
 )
 
 // StatefulSetStatusUpdaterInterface is an interface used to update the StatefulSetStatus associated with a StatefulSet.
@@ -36,15 +37,13 @@ type StatefulSetStatusUpdaterInterface interface {
 
 // NewRealStatefulSetStatusUpdater returns a StatefulSetStatusUpdaterInterface that updates the Status of a StatefulSet,
 // using the supplied client and setLister.
-func NewRealStatefulSetStatusUpdater(
-	client *kromeclient.Client,
-	setLister kromelister.StatefulsetLister) StatefulSetStatusUpdaterInterface {
-	return &realStatefulSetStatusUpdater{client, setLister}
+func NewRealStatefulSetStatusUpdater(client *kromeclient.Client, mgr manager.Manager) StatefulSetStatusUpdaterInterface {
+	return &realStatefulSetStatusUpdater{client, mgr}
 }
 
 type realStatefulSetStatusUpdater struct {
-	client    *kromeclient.Client
-	setLister kromelister.StatefulsetLister
+	client *kromeclient.Client
+	mgr    manager.Manager
 }
 
 func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
@@ -57,8 +56,9 @@ func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
 		if updateErr == nil {
 			return nil
 		}
-		// if updated, err := ssu.setLister.Statefulsets(set.Namespace).Get(set.Name); err == nil {
-		if updated, err := ssu.client.KromeClient.AppsV1().Statefulsets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{}); err != nil {
+
+		var updated = &kromev1.Statefulset{}
+		if err := ssu.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err != nil {
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()
 		} else {
