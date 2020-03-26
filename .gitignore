@@ -73,8 +73,10 @@ Session.vim
 # auto-generated tag files
 tags
 ### Idea ###
-*.idea/
 ### VisualStudioCode ###
 .vscode/*
 .history
 # End of https://www.gitignore.io/api/go,vim,emacs,visualstudiocode
+#
+.idea/*
+.idea/workspace.xml

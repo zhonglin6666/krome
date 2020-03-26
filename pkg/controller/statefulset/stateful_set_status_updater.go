@@ -62,7 +62,7 @@ func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()
 		} else {
-			utilruntime.HandleError(fmt.Errorf("error getting updated StatefulSet %s/%s from lister: %v", set.Namespace, set.Name, err))
+			utilruntime.HandleError(fmt.Errorf("error getting updated StatefulSet %s/%s from cache: %v", set.Namespace, set.Name, err))
 		}
 
 		return updateErr

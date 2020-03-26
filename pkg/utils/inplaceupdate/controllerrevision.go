@@ -62,7 +62,7 @@ func AdoptControllerRevision(client clientset.Interface, parent metav1.Object, p
 			parent.GetName(), parent.GetUID(), revision.UID)))
 }
 
-func CreateControllerRevision(mgr manager.Manager, c clientset.Interface, parent metav1.Object, revision *apps.ControllerRevision, collisionCount *int32) (*apps.ControllerRevision, error) {
+func CreateControllerRevision(c clientset.Interface, parent metav1.Object, revision *apps.ControllerRevision, collisionCount *int32) (*apps.ControllerRevision, error) {
 	if collisionCount == nil {
 		return nil, fmt.Errorf("collisionCount should not be nil")
 	}
@@ -76,7 +76,8 @@ func CreateControllerRevision(mgr manager.Manager, c clientset.Interface, parent
 		// Update the revisions name
 		clone.Name = ControllerRevisionName(parent.GetName(), hash)
 		ns := parent.GetNamespace()
-		err := mgr.GetClient().Create(context.TODO(), clone, &client.CreateOptions{})
+
+		_, err := c.AppsV1().ControllerRevisions(parent.GetNamespace()).Create(clone)
 		if errors.IsAlreadyExists(err) {
 			exists, err := c.AppsV1().ControllerRevisions(ns).Get(clone.Name, metav1.GetOptions{})
 			if err != nil {

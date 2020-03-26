@@ -18,13 +18,13 @@ import (
 	"math"
 	"sort"
 
+	"github.com/sirupsen/logrus"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/controller/history"
 	"krome/pkg/utils/inplaceupdate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,12 +61,14 @@ func NewDefaultStatefulSetControl(
 	podControl StatefulPodControlInterface,
 	statusUpdater StatefulSetStatusUpdaterInterface,
 	recorder record.EventRecorder,
+	client clientset.Interface,
 	mgr manager.Manager) StatefulSetControlInterface {
 	return &defaultStatefulSetControl{
 		podControl:    podControl,
 		statusUpdater: statusUpdater,
 		recorder:      recorder,
 		mgr:           mgr,
+		client:        client,
 	}
 }
 
@@ -103,7 +105,6 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 
 func (ssc *defaultStatefulSetControl) performUpdate(
 	set *kromev1.Statefulset, pods []*v1.Pod, revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
-
 	// get the current, and update revisions
 	currentRevision, updateRevision, collisionCount, err := ssc.getStatefulSetRevisions(set, revisions)
 	if err != nil {
@@ -122,7 +123,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		return currentRevision, updateRevision, err
 	}
 
-	klog.Infof("StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
+	logrus.Infof("StatefulSet %s/%s pod status replicas=%d ready=%d current=%d updated=%d",
 		set.Namespace,
 		set.Name,
 		status.Replicas,
@@ -130,7 +131,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 		status.CurrentReplicas,
 		status.UpdatedReplicas)
 
-	klog.Infof("StatefulSet %s/%s revisions current=%s update=%s",
+	logrus.Infof("StatefulSet %s/%s revisions current=%s update=%s",
 		set.Namespace,
 		set.Name,
 		status.CurrentRevision,
@@ -264,7 +265,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 		}
 	} else {
 		//if there is no equivalent revision we create a new one
-		updateRevision, err = inplaceupdate.CreateControllerRevision(ssc.mgr, ssc.client, set, updateRevision, &collisionCount)
+		updateRevision, err = inplaceupdate.CreateControllerRevision(ssc.client, set, updateRevision, &collisionCount)
 		if err != nil {
 			return nil, nil, collisionCount, err
 		}
@@ -396,7 +397,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	if unhealthy > 0 {
-		klog.V(4).Infof("StatefulSet %s/%s has %d unhealthy Pods starting with %s",
+		logrus.Infof("StatefulSet %s/%s has %d unhealthy Pods starting with %s",
 			set.Namespace,
 			set.Name,
 			unhealthy,
@@ -460,7 +461,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		// If we find a Pod that is currently terminating, we must wait until graceful deletion
 		// completes before we continue to make progress.
 		if isTerminating(replicas[i]) && monotonic {
-			klog.V(4).Infof(
+			logrus.Infof(
 				"StatefulSet %s/%s is waiting for Pod %s to Terminate",
 				set.Namespace,
 				set.Name,
@@ -471,7 +472,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		// We must ensure that all for each Pod, when we create it, all of its predecessors, with respect to its
 		// ordinal, are Running and Ready.
 		if !isRunningAndReady(replicas[i]) && monotonic {
-			klog.V(4).Infof(
+			logrus.Infof(
 				"StatefulSet %s/%s is waiting for Pod %s to be Running and Ready",
 				set.Namespace,
 				set.Name,
@@ -497,7 +498,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	for target := len(condemned) - 1; target >= 0; target-- {
 		// wait for terminating pods to expire
 		if isTerminating(condemned[target]) {
-			klog.V(4).Infof(
+			logrus.Debugf(
 				"StatefulSet %s/%s is waiting for Pod %s to Terminate prior to scale down",
 				set.Namespace,
 				set.Name,
@@ -510,14 +511,14 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		}
 		// if we are in monotonic mode and the condemned target is not the first unhealthy Pod block
 		if !isRunningAndReady(condemned[target]) && monotonic && condemned[target] != firstUnhealthyPod {
-			klog.V(4).Infof(
+			logrus.Debugf(
 				"StatefulSet %s/%s is waiting for Pod %s to be Running and Ready prior to scale down",
 				set.Namespace,
 				set.Name,
 				firstUnhealthyPod.Name)
 			return &status, nil
 		}
-		klog.V(2).Infof("StatefulSet %s/%s terminating Pod %s for scale down",
+		logrus.Debugf("StatefulSet %s/%s terminating Pod %s for scale down",
 			set.Namespace,
 			set.Name,
 			condemned[target].Name)
@@ -566,7 +567,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	for target := len(replicas) - 1; target >= updateMin; target-- {
 		// delete the Pod if it is not already terminating and does not match the update revision.
 		if getPodRevision(replicas[target]) != updateRevision.Name && !isTerminating(replicas[target]) {
-			klog.V(2).Infof("StatefulSet %s/%s terminating Pod %s for update",
+			logrus.Infof("StatefulSet %s/%s terminating Pod %s for update",
 				set.Namespace,
 				set.Name,
 				replicas[target].Name)
@@ -578,7 +579,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 
 		// wait for unhealthy Pods on update
 		if !isHealthy(replicas[target]) {
-			klog.V(4).Infof(
+			logrus.Infof(
 				"StatefulSet %s/%s is waiting for Pod %s to update",
 				set.Namespace,
 				set.Name,

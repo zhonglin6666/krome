@@ -3,6 +3,8 @@ package statefulset
 import (
 	"context"
 	"fmt"
+
+	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -10,17 +12,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	kromev1 "krome/pkg/apis/apps/v1"
@@ -28,8 +25,6 @@ import (
 )
 
 var (
-	log = logf.Log.WithName("controller_statefulset")
-
 	// controllerKind contains the schema.GroupVersionKind for statefulset type.
 	controllerKind = kromev1.SchemeGroupVersion.WithKind("Statefulset")
 )
@@ -57,23 +52,21 @@ func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 		return nil, err
 	}
 
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kromeClient.K8sClient.CoreV1().Events("")})
-	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "statefulset-controller"})
+	mgr.GetEventRecorderFor("xxx")
 
 	return &ReconcileStatefulset{
 		mgr:         mgr,
 		kromeClient: kromeClient,
 		control: NewDefaultStatefulSetControl(
-			NewRealStatefulPodControl(kromeClient.K8sClient, mgr, recorder),
+			NewRealStatefulPodControl(kromeClient.K8sClient, mgr, mgr.GetEventRecorderFor("realPodControl")),
 			NewRealStatefulSetStatusUpdater(kromeClient, mgr),
-			recorder,
+			mgr.GetEventRecorderFor("control"),
+			kromeClient.K8sClient,
 			mgr,
 		),
 		podControl: kubecontroller.RealPodControl{
 			KubeClient: kromeClient.K8sClient,
-			Recorder:   recorder,
+			Recorder:   mgr.GetEventRecorderFor("podControl"),
 		},
 	}, nil
 }
@@ -128,11 +121,11 @@ type ReconcileStatefulset struct {
 
 // syncStatefulset syncs a tuple of (statefulset, []*v1.Pod).
 func (r *ReconcileStatefulset) syncStatefulset(set *kromev1.Statefulset, pods []*corev1.Pod) error {
-	klog.Infof("Syncing Statefulset %v/%v with %d pods", set.Namespace, set.Name, len(pods))
+	logrus.Infof("Syncing Statefulset %v/%v with %d pods", set.Namespace, set.Name, len(pods))
 	if err := r.control.UpdateStatefulSet(set.DeepCopy(), pods); err != nil {
 		return err
 	}
-	klog.Infof("Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
+	logrus.Infof("Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
 	return nil
 }
 
@@ -141,8 +134,7 @@ func (r *ReconcileStatefulset) syncStatefulset(set *kromev1.Statefulset, pods []
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileStatefulset) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	reqLogger.Info("Reconciling Statefulset")
+	logrus.Infof("Reconcile Statefulset request namespace: %s, name: %s", request.Namespace, request.Name)
 
 	// Fetch the Statefulset instance
 	set := &kromev1.Statefulset{}
