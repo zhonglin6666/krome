@@ -11,15 +11,15 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"krome/pkg/apis/apps/v1.Statefulset": schema_pkg_apis_apps_v1_Statefulset(ref),
+		"krome/pkg/apis/apps/v1.StatefulSet": schema_pkg_apis_apps_v1_StatefulSet(ref),
 	}
 }
 
-func schema_pkg_apis_apps_v1_Statefulset(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_apps_v1_StatefulSet(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Statefulset is the Schema for the statefulsets API",
+				Description: "StatefulSet is the Schema for the StatefulSets API",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -43,18 +43,18 @@ func schema_pkg_apis_apps_v1_Statefulset(ref common.ReferenceCallback) common.Op
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("krome/pkg/apis/apps/v1.StatefulsetSpec"),
+							Ref: ref("krome/pkg/apis/apps/v1.StatefulSetSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("krome/pkg/apis/apps/v1.StatefulsetStatus"),
+							Ref: ref("krome/pkg/apis/apps/v1.StatefulSetStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "krome/pkg/apis/apps/v1.StatefulsetSpec", "krome/pkg/apis/apps/v1.StatefulsetStatus"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta", "krome/pkg/apis/apps/v1.StatefulSetSpec", "krome/pkg/apis/apps/v1.StatefulSetStatus"},
 	}
 }

@@ -16,12 +16,12 @@ package statefulset
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	kromev1 "krome/pkg/apis/apps/v1"
 	kromeclient "krome/pkg/client"
@@ -32,7 +32,7 @@ import (
 type StatefulSetStatusUpdaterInterface interface {
 	// UpdateStatefulSetStatus sets the set's Status to status. Implementations are required to retry on conflicts,
 	// but fail on other errors. If the returned error is nil set's Status has been successfully set to status.
-	UpdateStatefulSetStatus(set *kromev1.Statefulset, status *kromev1.StatefulsetStatus) error
+	UpdateStatefulSetStatus(set *kromev1.StatefulSet, status *kromev1.StatefulSetStatus) error
 }
 
 // NewRealStatefulSetStatusUpdater returns a StatefulSetStatusUpdaterInterface that updates the Status of a StatefulSet,
@@ -47,17 +47,17 @@ type realStatefulSetStatusUpdater struct {
 }
 
 func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
-	set *kromev1.Statefulset,
-	status *kromev1.StatefulsetStatus) error {
+	set *kromev1.StatefulSet,
+	status *kromev1.StatefulSetStatus) error {
 	// don't wait due to limited number of clients, but backoff after the default number of steps
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		set.Status = *status
-		_, updateErr := ssu.client.KromeClient.AppsV1().Statefulsets(set.Namespace).UpdateStatus(context.TODO(), set, metav1.UpdateOptions{})
+		_, updateErr := ssu.client.KromeClient.AppsV1().StatefulSets(set.Namespace).UpdateStatus(context.TODO(), set, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
 
-		var updated = &kromev1.Statefulset{}
+		var updated = &kromev1.StatefulSet{}
 		if err := ssu.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err != nil {
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()

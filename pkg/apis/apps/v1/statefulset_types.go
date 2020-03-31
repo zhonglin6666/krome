@@ -29,8 +29,8 @@ const (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// StatefulsetSpec defines the desired state of Statefulset
-type StatefulsetSpec struct {
+// StatefulSetSpec defines the desired state of StatefulSet
+type StatefulSetSpec struct {
 	// replicas is the desired number of replicas of the given Template.
 	// These are replicas in the sense that they are instantiations of the
 	// same Template, but individual replicas also have a consistent identity.
@@ -182,8 +182,8 @@ type UpdatePriorityWeightTerm struct {
 	MatchSelector metav1.LabelSelector `json:"matchSelector"`
 }
 
-// StatefulsetStatus defines the observed state of Statefulset
-type StatefulsetStatus struct {
+// StatefulSetStatus defines the observed state of StatefulSet
+type StatefulSetStatus struct {
 	// observedGeneration is the most recent generation observed for this StatefulSet. It corresponds to the
 	// StatefulSet's generation, which is updated on mutation by the API Server.
 	// +optional
@@ -217,31 +217,31 @@ type StatefulsetStatus struct {
 	// +optional
 	CollisionCount *int32 `json:"collisionCount,omitempty"`
 
-	// Represents the latest available observations of a statefulset's current state.
+	// Represents the latest available observations of a StatefulSet's current state.
 	Conditions []appsv1.StatefulSetCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Statefulset is the Schema for the statefulsets API
+// StatefulSet is the Schema for the StatefulSets API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=statefulsets,scope=Namespaced
-type Statefulset struct {
+// +kubebuilder:resource:path=StatefulSets,scope=Namespaced
+type StatefulSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   StatefulsetSpec   `json:"spec,omitempty"`
-	Status StatefulsetStatus `json:"status,omitempty"`
+	Spec   StatefulSetSpec   `json:"spec,omitempty"`
+	Status StatefulSetStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// StatefulsetList contains a list of Statefulset
-type StatefulsetList struct {
+// StatefulSetList contains a list of StatefulSet
+type StatefulSetList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Statefulset `json:"items"`
+	Items           []StatefulSet `json:"items"`
 }

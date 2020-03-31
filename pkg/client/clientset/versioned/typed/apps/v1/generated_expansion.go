@@ -18,4 +18,4 @@ limitations under the License.
 
 package v1
 
-type StatefulsetExpansion interface{}
+type StatefulSetExpansion interface{}

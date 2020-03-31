@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// Statefulsets returns a StatefulsetInformer.
-	Statefulsets() StatefulsetInformer
+	// StatefulSets returns a StatefulSetInformer.
+	StatefulSets() StatefulSetInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// Statefulsets returns a StatefulsetInformer.
-func (v *version) Statefulsets() StatefulsetInformer {
-	return &statefulsetInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// StatefulSets returns a StatefulSetInformer.
+func (v *version) StatefulSets() StatefulSetInformer {
+	return &StatefulSetInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

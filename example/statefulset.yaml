@@ -1,19 +1,19 @@
 apiVersion: apps.krome.io/v1
-kind: Statefulset
+kind: StatefulSet
 metadata:
-  name: statefulset-example
+  name: StatefulSet-example
 spec:
   replicas: 4
   selector:
     matchLabels:
-      app: statefulset-example
+      app: StatefulSet-example
   template:
     metadata:
       labels:
-        app: statefulset-example
+        app: StatefulSet-example
     spec:
       containers:
-      - name: statefulset-example
+      - name: StatefulSet-example
         image: nginx:1.13
         imagePullPolicy: IfNotPresent
       ReadinessGates:

@@ -18,10 +18,10 @@ limitations under the License.
 
 package v1
 
-// StatefulsetListerExpansion allows custom methods to be added to
-// StatefulsetLister.
-type StatefulsetListerExpansion interface{}
+// StatefulSetListerExpansion allows custom methods to be added to
+// StatefulSetLister.
+type StatefulSetListerExpansion interface{}
 
-// StatefulsetNamespaceListerExpansion allows custom methods to be added to
-// StatefulsetNamespaceLister.
-type StatefulsetNamespaceListerExpansion interface{}
+// StatefulSetNamespaceListerExpansion allows custom methods to be added to
+// StatefulSetNamespaceLister.
+type StatefulSetNamespaceListerExpansion interface{}

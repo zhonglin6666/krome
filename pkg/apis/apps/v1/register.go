@@ -34,8 +34,8 @@ func Kind(kind string) schema.GroupKind {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
-		&Statefulset{},
-		&StatefulsetList{},
+		&StatefulSet{},
+		&StatefulSetList{},
 	)
 
 	// register the type in the scheme

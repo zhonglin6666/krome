@@ -41,19 +41,19 @@ import (
 type StatefulPodControlInterface interface {
 	// CreateStatefulPod create a Pod in a StatefulSet. Any PVCs necessary for the Pod are created prior to creating
 	// the Pod. If the returned error is nil the Pod and its PVCs have been created.
-	CreateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+	CreateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error
 
 	// UpdateStatefulPod Updates a Pod in a StatefulSet. If the Pod already has the correct identity and stable
 	// storage this method is a no-op. If the Pod must be mutated to conform to the Set, it is mutated and updated.
 	// pod is an in-out parameter, and any updates made to the pod are reflected as mutations to this parameter. If
 	// the create is successful, the returned error is nil.
-	UpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+	UpdateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error
 
 	// DeleteStatefulPod deletes a Pod in a StatefulSet. The pods PVCs are not deleted. If the delete is successful,
 	// the returned error is nil.
-	DeleteStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error
+	DeleteStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error
 
-	InPlcateUpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod, oldRevision, newRevision *appsv1.ControllerRevision) error
+	InPlcateUpdateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod, oldRevision, newRevision *appsv1.ControllerRevision) error
 }
 
 func NewRealStatefulPodControl(
@@ -72,7 +72,7 @@ type realStatefulPodControl struct {
 	recorder record.EventRecorder
 }
 
-func (spc *realStatefulPodControl) CreateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error {
+func (spc *realStatefulPodControl) CreateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error {
 	// Create the Pod's PVCs prior to creating the Pod
 	if err := spc.createPersistentVolumeClaims(set, pod); err != nil {
 		spc.recordPodEvent("create", set, pod, err)
@@ -88,7 +88,7 @@ func (spc *realStatefulPodControl) CreateStatefulPod(set *kromev1.Statefulset, p
 	return err
 }
 
-func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error {
+func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error {
 	attemptedUpdate := false
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		// assume the Pod is consistent
@@ -100,14 +100,14 @@ func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.Statefulset, p
 		}
 		// if the Pod does not conform to the StatefulSet's storage requirements, update the Pod's PVC's,
 		// dirty the Pod, and create any missing PVCs
-		if !storageMatches(set, pod) {
-			updateStorage(set, pod)
-			consistent = false
-			if err := spc.createPersistentVolumeClaims(set, pod); err != nil {
-				spc.recordPodEvent("update", set, pod, err)
-				return err
-			}
-		}
+		//if !storageMatches(set, pod) {
+		//	updateStorage(set, pod)
+		//	consistent = false
+		//	if err := spc.createPersistentVolumeClaims(set, pod); err != nil {
+		//		spc.recordPodEvent("update", set, pod, err)
+		//		return err
+		//	}
+		//}
 		// if the Pod is not dirty, do nothing
 		if consistent {
 			return nil
@@ -136,7 +136,7 @@ func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.Statefulset, p
 	return err
 }
 
-func (spc *realStatefulPodControl) DeleteStatefulPod(set *kromev1.Statefulset, pod *v1.Pod) error {
+func (spc *realStatefulPodControl) DeleteStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error {
 	err := spc.client.CoreV1().Pods(set.Namespace).Delete(pod.Name, &metav1.DeleteOptions{})
 	spc.recordPodEvent("delete", set, pod, err)
 	return err
@@ -144,7 +144,7 @@ func (spc *realStatefulPodControl) DeleteStatefulPod(set *kromev1.Statefulset, p
 
 // recordPodEvent records an event for verb applied to a Pod in a StatefulSet. If err is nil the generated event will
 // have a reason of v1.EventTypeNormal. If err is not nil the generated event will have a reason of v1.EventTypeWarning.
-func (spc *realStatefulPodControl) recordPodEvent(verb string, set *kromev1.Statefulset, pod *v1.Pod, err error) {
+func (spc *realStatefulPodControl) recordPodEvent(verb string, set *kromev1.StatefulSet, pod *v1.Pod, err error) {
 	if err == nil {
 		reason := fmt.Sprintf("Successful%s", strings.Title(verb))
 		message := fmt.Sprintf("%s Pod %s in StatefulSet %s successful",
@@ -161,7 +161,7 @@ func (spc *realStatefulPodControl) recordPodEvent(verb string, set *kromev1.Stat
 // recordClaimEvent records an event for verb applied to the PersistentVolumeClaim of a Pod in a StatefulSet. If err is
 // nil the generated event will have a reason of v1.EventTypeNormal. If err is not nil the generated event will have a
 // reason of v1.EventTypeWarning.
-func (spc *realStatefulPodControl) recordClaimEvent(verb string, set *kromev1.Statefulset, pod *v1.Pod, claim *v1.PersistentVolumeClaim, err error) {
+func (spc *realStatefulPodControl) recordClaimEvent(verb string, set *kromev1.StatefulSet, pod *v1.Pod, claim *v1.PersistentVolumeClaim, err error) {
 	if err == nil {
 		reason := fmt.Sprintf("Successful%s", strings.Title(verb))
 		message := fmt.Sprintf("%s Claim %s Pod %s in StatefulSet %s success",
@@ -179,11 +179,13 @@ func (spc *realStatefulPodControl) recordClaimEvent(verb string, set *kromev1.St
 // set. If all of the claims for Pod are successfully created, the returned error is nil. If creation fails, this method
 // may be called again until no error is returned, indicating the PersistentVolumeClaims for pod are consistent with
 // set's Spec.
-func (spc *realStatefulPodControl) createPersistentVolumeClaims(set *kromev1.Statefulset, pod *v1.Pod) error {
+func (spc *realStatefulPodControl) createPersistentVolumeClaims(set *kromev1.StatefulSet, pod *v1.Pod) error {
 	var errs []error
 	for _, claim := range getPersistentVolumeClaims(set, pod) {
-		var pvc = &v1.PersistentVolumeClaim{}
-		err := spc.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, pvc)
+		//var pvc = &v1.PersistentVolumeClaim{}
+		// TODO
+		//err := spc.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, pvc)
+		_, err := spc.client.CoreV1().PersistentVolumeClaims(set.Namespace).Get(set.Name, metav1.GetOptions{})
 		switch {
 		case apierrors.IsNotFound(err):
 			_, err := spc.client.CoreV1().PersistentVolumeClaims(claim.Namespace).Create(&claim)
@@ -202,12 +204,12 @@ func (spc *realStatefulPodControl) createPersistentVolumeClaims(set *kromev1.Sta
 	return errorutils.NewAggregate(errs)
 }
 
-func (spc *realStatefulPodControl) InPlcateUpdateStatefulPod(set *kromev1.Statefulset, pod *v1.Pod,
+func (spc *realStatefulPodControl) InPlcateUpdateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod,
 	oldRevision, newRevision *appsv1.ControllerRevision) error {
 	// make inplace update pod spec
 	spec := kromeutil.CalculateInPlaceUpdateSpec(oldRevision, newRevision)
 	if spec == nil {
-		return fmt.Errorf("inplace update statefulset pod spec is nil")
+		return fmt.Errorf("inplace update StatefulSet pod spec is nil")
 	}
 
 	// update condition

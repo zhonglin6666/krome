@@ -41,15 +41,15 @@ type StatefulSetControlInterface interface {
 	// If an implementation returns a non-nil error, the invocation will be retried using a rate-limited strategy.
 	// Implementors should sink any errors that they do not wish to trigger a retry, and they may feel free to
 	// exit exceptionally at any point provided they wish the update to be re-run at a later point in time.
-	UpdateStatefulSet(set *kromev1.Statefulset, pods []*v1.Pod) error
+	UpdateStatefulSet(set *kromev1.StatefulSet, pods []*v1.Pod) error
 
 	// ListRevisions returns a array of the ControllerRevisions that represent the revisions of set. If the returned
 	// error is nil, the returns slice of ControllerRevisions is valid.
-	ListRevisions(set *kromev1.Statefulset) ([]*apps.ControllerRevision, error)
+	ListRevisions(set *kromev1.StatefulSet) ([]*apps.ControllerRevision, error)
 
 	// AdoptOrphanRevisions adopts any orphaned ControllerRevisions that match set's Selector. If all adoptions are
 	// successful the returned error is nil.
-	AdoptOrphanRevisions(set *kromev1.Statefulset, revisions []*apps.ControllerRevision) error
+	AdoptOrphanRevisions(set *kromev1.StatefulSet, revisions []*apps.ControllerRevision) error
 }
 
 // NewDefaultStatefulSetControl returns a new instance of the default implementation StatefulSetControlInterface that
@@ -86,7 +86,7 @@ type defaultStatefulSetControl struct {
 // strategy allows these constraints to be relaxed - pods will be created and deleted eagerly and
 // in no particular order. Clients using the burst strategy should be careful to ensure they
 // understand the consistency implications of having unpredictable numbers of pods available.
-func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset, pods []*v1.Pod) error {
+func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.StatefulSet, pods []*v1.Pod) error {
 	// list all revisions and sort them
 	revisions, err := ssc.ListRevisions(set)
 	if err != nil {
@@ -104,7 +104,7 @@ func (ssc *defaultStatefulSetControl) UpdateStatefulSet(set *kromev1.Statefulset
 }
 
 func (ssc *defaultStatefulSetControl) performUpdate(
-	set *kromev1.Statefulset, pods []*v1.Pod, revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
+	set *kromev1.StatefulSet, pods []*v1.Pod, revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, error) {
 	// get the current, and update revisions
 	currentRevision, updateRevision, collisionCount, err := ssc.getStatefulSetRevisions(set, revisions)
 	if err != nil {
@@ -140,7 +140,7 @@ func (ssc *defaultStatefulSetControl) performUpdate(
 	return currentRevision, updateRevision, nil
 }
 
-func (ssc *defaultStatefulSetControl) ListRevisions(set *kromev1.Statefulset) ([]*apps.ControllerRevision, error) {
+func (ssc *defaultStatefulSetControl) ListRevisions(set *kromev1.StatefulSet) ([]*apps.ControllerRevision, error) {
 	selector, err := metav1.LabelSelectorAsSelector(set.Spec.Selector)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (ssc *defaultStatefulSetControl) ListRevisions(set *kromev1.Statefulset) ([
 }
 
 func (ssc *defaultStatefulSetControl) AdoptOrphanRevisions(
-	set *kromev1.Statefulset,
+	set *kromev1.StatefulSet,
 	revisions []*apps.ControllerRevision) error {
 	for i := range revisions {
 		adopted, err := inplaceupdate.AdoptControllerRevision(ssc.client, set, controllerKind, revisions[i])
@@ -177,7 +177,7 @@ func (ssc *defaultStatefulSetControl) AdoptOrphanRevisions(
 // only RevisionHistoryLimit revisions remain. If the returned error is nil the operation was successful. This method
 // expects that revisions is sorted when supplied.
 func (ssc *defaultStatefulSetControl) truncateHistory(
-	set *kromev1.Statefulset,
+	set *kromev1.StatefulSet,
 	pods []*v1.Pod,
 	revisions []*apps.ControllerRevision,
 	current *apps.ControllerRevision,
@@ -226,7 +226,7 @@ func (ssc *defaultStatefulSetControl) truncateHistory(
 // a new revision, or modify the Revision of an existing revision if an update to set is detected.
 // This method expects that revisions is sorted when supplied.
 func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
-	set *kromev1.Statefulset,
+	set *kromev1.StatefulSet,
 	revisions []*apps.ControllerRevision) (*apps.ControllerRevision, *apps.ControllerRevision, int32, error) {
 	var currentRevision, updateRevision *apps.ControllerRevision
 
@@ -297,12 +297,12 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 // Pods must be at Status.UpdateRevision. If the returned error is nil, the returned StatefulSetStatus is valid and the
 // update must be recorded. If the error is not nil, the method should be retried until successful.
 func (ssc *defaultStatefulSetControl) updateStatefulSet(
-	set *kromev1.Statefulset,
+	set *kromev1.StatefulSet,
 	currentRevision *apps.ControllerRevision,
 	updateRevision *apps.ControllerRevision,
 	collisionCount int32,
 	pods []*v1.Pod,
-	revisions []*apps.ControllerRevision) (*kromev1.StatefulsetStatus, error) {
+	revisions []*apps.ControllerRevision) (*kromev1.StatefulSetStatus, error) {
 	// get the current and update revisions of the set.
 	currentSet, err := ApplyRevision(set, currentRevision)
 	if err != nil {
@@ -314,7 +314,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	// set the generation, and revisions in the returned status
-	status := kromev1.StatefulsetStatus{}
+	status := kromev1.StatefulSetStatus{}
 	status.ObservedGeneration = set.Generation
 	status.CurrentRevision = currentRevision.Name
 	status.UpdateRevision = updateRevision.Name
@@ -595,8 +595,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 // mutated to indicate completion. If status is semantically equivalent to set's Status no update is performed. If the
 // returned error is nil, the update is successful.
 func (ssc *defaultStatefulSetControl) updateStatefulSetStatus(
-	set *kromev1.Statefulset,
-	status *kromev1.StatefulsetStatus) error {
+	set *kromev1.StatefulSet,
+	status *kromev1.StatefulSetStatus) error {
 
 	// complete any in progress rolling update if necessary
 	completeRollingUpdate(set, status)
@@ -616,7 +616,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSetStatus(
 }
 
 func (ssc *defaultStatefulSetControl) inPlaceUpdatePod(
-	set *kromev1.Statefulset,
+	set *kromev1.StatefulSet,
 	pod *v1.Pod,
 	updateRevision *apps.ControllerRevision,
 	revisions []*apps.ControllerRevision) (bool, error) {

@@ -19,32 +19,27 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/rest"
-
-	"krome/pkg/apis"
-	"krome/pkg/controller"
-	"krome/version"
-
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
-	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
-	sdkVersion "github.com/operator-framework/operator-sdk/version"
-	"github.com/spf13/pflag"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+
+	"krome/pkg/apis"
+	"krome/pkg/controller"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -52,58 +47,80 @@ var (
 	metricsHost               = "0.0.0.0"
 	metricsPort         int32 = 8383
 	operatorMetricsPort int32 = 8686
-)
-var log = logf.Log.WithName("cmd")
 
-func printVersion() {
-	log.Info(fmt.Sprintf("Operator Version: %s", version.Version))
-	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
-	log.Info(fmt.Sprintf("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH))
-	log.Info(fmt.Sprintf("Version of operator-sdk: %v", sdkVersion.Version))
-}
+	version = "1.0.0"
+)
 
 func main() {
-	// Add the zap logger flag set to the CLI. The flag set must
-	// be added before calling pflag.Parse().
-	pflag.CommandLine.AddFlagSet(zap.FlagSet())
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	logrus.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
 
-	// Add flags registered by imported packages (e.g. glog and
-	// controller-runtime)
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	app := cli.App{
+		Name:            "krome",
+		Usage:           "",
+		Version:         version,
+		CommandNotFound: cmdNotFound,
+		Before: func(ctx *cli.Context) error {
+			if ctx.Bool("debug") {
+				logrus.SetLevel(logrus.DebugLevel)
+			}
+			return nil
+		},
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "debug, d",
+				Usage: "enable debug log level",
+			},
+			&cli.StringFlag{
+				Name:  "master, m",
+				Usage: "kubernetes master",
+				Value: "",
+			},
+			&cli.StringFlag{
+				Name:  "kubeconfig, k",
+				Usage: "kubernetes config",
+				Value: "",
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:  "daemon",
+				Flags: []cli.Flag{},
+				Action: func(c *cli.Context) error {
+					if err := startDaemon(c); err != nil {
+						logrus.Infof("Failed to start daemon")
+					}
+					return nil
+				},
+			},
+		},
+	}
 
-	pflag.Parse()
+	if err := app.Run(os.Args); err != nil {
+		logrus.Fatalf("Run error: %v", err)
+	}
+}
 
-	// Use a zap logr.Logger implementation. If none of the zap
-	// flags are configured (or if the zap flag set is not being
-	// used), this defaults to a production zap logger.
-	//
-	// The logger instantiated here can be changed to any logger
-	// implementing the logr.Logger interface. This logger will
-	// be propagated through the whole operator, generating
-	// uniform and structured logs.
-	logf.SetLogger(zap.Logger())
-
-	printVersion()
-
+func startDaemon(c *cli.Context) error {
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
-		log.Error(err, "Failed to get watch namespace")
-		os.Exit(1)
+		logrus.Errorf("Failed to get watch namespace, error: %v", err)
+		return err
 	}
 
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		logrus.Errorf("Get config error: %v", err)
+		return err
 	}
 
 	ctx := context.TODO()
 	// Become the leader before proceeding
 	err = leader.Become(ctx, "krome-lock")
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		logrus.Errorf("Leader become error: %v", err)
+		return err
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
@@ -112,34 +129,39 @@ func main() {
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 	})
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		logrus.Errorf("Create manager error: %v", err)
+		return err
 	}
 
-	log.Info("Registering Components.")
+	logrus.Infof("Registering Components.")
 
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		logrus.Errorf("Setup scheme error: %v", err)
+		return err
 	}
 
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr); err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		logrus.Errorf("Setup controllers error: %v", err)
+		return err
 	}
 
 	// Add the Metrics Service
 	addMetrics(ctx, cfg, namespace)
 
-	log.Info("Starting the Cmd.")
+	logrus.Infof("Starting the Cmd.")
 
 	// Start the Cmd
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "Manager exited non-zero")
-		os.Exit(1)
+		logrus.Errorf("Start manager error: %v", err)
+		return err
 	}
+	return nil
+}
+
+func cmdNotFound(ctx *cli.Context, cmd string) {
+	panic(fmt.Errorf("invalid command: %s", cmd))
 }
 
 // addMetrics will create the Services and Service Monitors to allow the operator export the metrics by using
@@ -147,10 +169,10 @@ func main() {
 func addMetrics(ctx context.Context, cfg *rest.Config, namespace string) {
 	if err := serveCRMetrics(cfg); err != nil {
 		if errors.Is(err, k8sutil.ErrRunLocal) {
-			log.Info("Skipping CR metrics server creation; not running in a cluster.")
+			logrus.Infof("Skipping CR metrics server creation; not running in a cluster.")
 			return
 		}
-		log.Info("Could not generate and serve custom resource metrics", "error", err.Error())
+		logrus.Infof("Could not generate and serve custom resource metrics, error: %v", err)
 	}
 
 	// Add to the below struct any other metrics ports you want to expose.
@@ -162,7 +184,7 @@ func addMetrics(ctx context.Context, cfg *rest.Config, namespace string) {
 	// Create Service object to expose the metrics port(s).
 	service, err := metrics.CreateMetricsService(ctx, cfg, servicePorts)
 	if err != nil {
-		log.Info("Could not create metrics Service", "error", err.Error())
+		logrus.Infof("Could not create metrics Service error: %v", err)
 	}
 
 	// CreateServiceMonitors will automatically create the prometheus-operator ServiceMonitor resources
@@ -170,11 +192,11 @@ func addMetrics(ctx context.Context, cfg *rest.Config, namespace string) {
 	services := []*v1.Service{service}
 	_, err = metrics.CreateServiceMonitors(cfg, namespace, services)
 	if err != nil {
-		log.Info("Could not create ServiceMonitor object", "error", err.Error())
+		logrus.Infof("Could not create ServiceMonitor object error: %v", err)
 		// If this operator is deployed to a cluster without the prometheus-operator running, it will return
 		// ErrServiceMonitorNotPresent, which can be used to safely skip ServiceMonitor creation.
 		if err == metrics.ErrServiceMonitorNotPresent {
-			log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
+			logrus.Infof("Install prometheus-operator in your cluster to create ServiceMonitor objects error: %v", err)
 		}
 	}
 }

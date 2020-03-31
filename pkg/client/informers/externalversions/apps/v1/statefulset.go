@@ -32,59 +32,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// StatefulsetInformer provides access to a shared informer and lister for
-// Statefulsets.
-type StatefulsetInformer interface {
+// StatefulSetInformer provides access to a shared informer and lister for
+// StatefulSets.
+type StatefulSetInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.StatefulsetLister
+	Lister() v1.StatefulSetLister
 }
 
-type statefulsetInformer struct {
+type StatefulSetInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewStatefulsetInformer constructs a new informer for Statefulset type.
+// NewStatefulSetInformer constructs a new informer for StatefulSet type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewStatefulsetInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredStatefulsetInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewStatefulSetInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredStatefulSetInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredStatefulsetInformer constructs a new informer for Statefulset type.
+// NewFilteredStatefulSetInformer constructs a new informer for StatefulSet type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredStatefulsetInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredStatefulSetInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().Statefulsets(namespace).List(context.TODO(), options)
+				return client.AppsV1().StatefulSets(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.AppsV1().Statefulsets(namespace).Watch(context.TODO(), options)
+				return client.AppsV1().StatefulSets(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&appsv1.Statefulset{},
+		&appsv1.StatefulSet{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *statefulsetInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredStatefulsetInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *StatefulSetInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredStatefulSetInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *statefulsetInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&appsv1.Statefulset{}, f.defaultInformer)
+func (f *StatefulSetInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&appsv1.StatefulSet{}, f.defaultInformer)
 }
 
-func (f *statefulsetInformer) Lister() v1.StatefulsetLister {
-	return v1.NewStatefulsetLister(f.Informer().GetIndexer())
+func (f *StatefulSetInformer) Lister() v1.StatefulSetLister {
+	return v1.NewStatefulSetLister(f.Informer().GetIndexer())
 }

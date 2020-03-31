@@ -29,8 +29,8 @@ type FakeAppsV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeAppsV1) Statefulsets(namespace string) v1.StatefulsetInterface {
-	return &FakeStatefulsets{c, namespace}
+func (c *FakeAppsV1) StatefulSets(namespace string) v1.StatefulSetInterface {
+	return &FakeStatefulSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

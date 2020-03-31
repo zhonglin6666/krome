@@ -29,7 +29,7 @@ rules:
   - deployments
   - daemonsets
   - replicasets
-  - statefulsets
+  - StatefulSets
   verbs:
   - create
   - delete
