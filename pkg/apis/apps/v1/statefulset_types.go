@@ -226,6 +226,7 @@ type StatefulSetStatus struct {
 
 // StatefulSet is the Schema for the StatefulSets API
 // +k8s:openapi-gen=true
+// +k8s:defaulter-gen=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=StatefulSets,scope=Namespaced

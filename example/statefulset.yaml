@@ -1,21 +1,24 @@
 apiVersion: apps.krome.io/v1
 kind: StatefulSet
 metadata:
-  name: StatefulSet-example
+  name: statefulset-example
 spec:
   replicas: 4
   selector:
     matchLabels:
-      app: StatefulSet-example
+      app: statefulset-example
   template:
     metadata:
       labels:
-        app: StatefulSet-example
+        app: statefulset-example
     spec:
       containers:
-      - name: StatefulSet-example
-        image: nginx:1.13
+      - name: statefulset-example
+        image: nginx:1.12.2
         imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /mnt
+          name: mnt
       ReadinessGates:
       - conditionType: InPlaceUpdateReady
   PodManagementPolicy: Parallel
@@ -23,5 +26,16 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       podUpdatePolicy: InPlaceIfPossible
-      maxUnavailable: 1
-      partition: 0
+      #maxUnavailable: 1
+      #partition: 0
+  volumeClaimTemplates:
+  - metadata:
+      name: mnt
+      annotations:
+        volume.beta.kubernetes.io/storage-class: csi-hostpath-sc
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 200Mi

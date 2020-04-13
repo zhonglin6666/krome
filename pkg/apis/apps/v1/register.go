@@ -2,6 +2,7 @@
 
 // Package v1 contains API Schema definitions for the apps v1 API group
 // +k8s:deepcopy-gen=package,register
+// +k8s:defaulter-gen=TypeMeta
 // +groupName=apps.krome.io
 package v1
 
@@ -41,4 +42,11 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	// register the type in the scheme
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
+}
+
+func init() {
+	// We only register manually written functions here. The registration of the
+	// generated functions takes place in the generated files. The separation
+	// makes the code compile even when the generated files are missing.
+	SchemeBuilder.Register(addDefaultingFuncs)
 }

@@ -1,14 +1,14 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: StatefulSets.apps.krome.io
+  name: statefulsets.apps.krome.io
 spec:
   group: apps.krome.io
   names:
     kind: StatefulSet
     listKind: StatefulSetList
-    plural: StatefulSets
-    singular: StatefulSet
+    plural: statefulsets
+    singular: statefulset
   scope: Namespaced
   subresources:
     status: {}

@@ -52,8 +52,6 @@ func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 		return nil, err
 	}
 
-	mgr.GetEventRecorderFor("xxx")
-
 	return &ReconcileStatefulSet{
 		mgr:         mgr,
 		kromeClient: kromeClient,
@@ -125,6 +123,7 @@ func (r *ReconcileStatefulSet) syncStatefulSet(set *kromev1.StatefulSet, pods []
 	if err := r.control.UpdateStatefulSet(set.DeepCopy(), pods); err != nil {
 		return err
 	}
+
 	logrus.Infof("Successfully synced StatefulSet %s/%s successful", set.Namespace, set.Name)
 	return nil
 }
