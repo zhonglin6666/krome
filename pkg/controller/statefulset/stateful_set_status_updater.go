@@ -37,12 +37,12 @@ type StatefulSetStatusUpdaterInterface interface {
 
 // NewRealStatefulSetStatusUpdater returns a StatefulSetStatusUpdaterInterface that updates the Status of a StatefulSet,
 // using the supplied client and setLister.
-func NewRealStatefulSetStatusUpdater(client *kromeclient.Clientset, managerClient mgrclient.Client) StatefulSetStatusUpdaterInterface {
+func NewRealStatefulSetStatusUpdater(client kromeclient.Interface, managerClient mgrclient.Client) StatefulSetStatusUpdaterInterface {
 	return &realStatefulSetStatusUpdater{client, managerClient}
 }
 
 type realStatefulSetStatusUpdater struct {
-	client        *kromeclient.Clientset
+	client        kromeclient.Interface
 	managerClient mgrclient.Client
 }
 
