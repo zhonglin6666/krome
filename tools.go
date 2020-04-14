@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// +build tools
-
 // Place any runtime dependencies as imports in this file.
 // Go modules will be forced to download and install them.
+
 package tools

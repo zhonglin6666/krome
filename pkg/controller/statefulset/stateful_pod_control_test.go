@@ -19,36 +19,66 @@ package statefulset
 import (
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakek8sclient "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes/scheme"
+	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	mgrclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
-var (
-	ss = &kromev1.StatefulSet{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps.krome.io/v1",
-			Kind:       "StatefulSet",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-statefulset",
-			Namespace: "ns1",
-		},
-	}
-)
-
 func TestStatefulPodControlCreatePods(t *testing.T) {
 	recorder := record.NewFakeRecorder(10)
 	fakeClient := &fakek8sclient.Clientset{}
-	fakeMgrClient := mgrclient.NewFakeClient(ss)
+	sch := scheme.Scheme
+	sb := kromev1.SchemeBuilder
+	sb.AddToScheme(sch)
+	ss := newStatefulSet(3)
+	pod := newStatefulSetPod(ss, 0)
+	fakeMgrClient := mgrclient.NewFakeClientWithScheme(sch, ss)
 
 	podControl := NewRealStatefulPodControl(fakeClient, fakeMgrClient, recorder)
-	pod := newStatefulSetPod(ss, 2)
+
+	fakeClient.AddReactor("get", "persistentvolumeclaims", func(action core.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewNotFound(action.GetResource().GroupResource(), action.GetResource().Resource)
+	})
+	fakeClient.AddReactor("create", "persistentvolumeclaims", func(action core.Action) (bool, runtime.Object, error) {
+		create := action.(core.CreateAction)
+		return true, create.GetObject(), nil
+	})
+	fakeClient.AddReactor("create", "pods", func(action core.Action) (bool, runtime.Object, error) {
+		create := action.(core.CreateAction)
+		return true, create.GetObject(), nil
+	})
 
 	if err := podControl.CreateStatefulPod(ss, pod); err != nil {
 		t.Errorf("StatefulPodControl failed to create Pod error: %s", err)
 	}
+
+	t.Logf("TestStatefulPodControlCreatePods succeed")
+
+	events := collectEvents(recorder.Events)
+	//if eventCount := len(events); eventCount != 2 {
+	//	t.Errorf("Expected 2 events for successful create found %d", eventCount)
+	//}
+	for i := range events {
+		t.Logf("i=%d, event=%#v", i, events[i])
+	}
+}
+
+func collectEvents(source <-chan string) []string {
+	done := false
+	events := make([]string, 0)
+	for !done {
+		select {
+		case event := <-source:
+			events = append(events, event)
+		default:
+			done = true
+		}
+	}
+	return events
 }
