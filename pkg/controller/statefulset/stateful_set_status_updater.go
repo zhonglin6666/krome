@@ -21,10 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	mgrclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kromev1 "krome/pkg/apis/apps/v1"
-	kromeclient "krome/pkg/client"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
+	kromeclient "krome.io/krome/pkg/client/clientset/versioned"
 )
 
 // StatefulSetStatusUpdaterInterface is an interface used to update the StatefulSetStatus associated with a StatefulSet.
@@ -37,13 +37,13 @@ type StatefulSetStatusUpdaterInterface interface {
 
 // NewRealStatefulSetStatusUpdater returns a StatefulSetStatusUpdaterInterface that updates the Status of a StatefulSet,
 // using the supplied client and setLister.
-func NewRealStatefulSetStatusUpdater(client *kromeclient.Client, mgr manager.Manager) StatefulSetStatusUpdaterInterface {
-	return &realStatefulSetStatusUpdater{client, mgr}
+func NewRealStatefulSetStatusUpdater(client *kromeclient.Clientset, managerClient mgrclient.Client) StatefulSetStatusUpdaterInterface {
+	return &realStatefulSetStatusUpdater{client, managerClient}
 }
 
 type realStatefulSetStatusUpdater struct {
-	client *kromeclient.Client
-	mgr    manager.Manager
+	client        *kromeclient.Clientset
+	managerClient mgrclient.Client
 }
 
 func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
@@ -52,13 +52,13 @@ func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
 	// don't wait due to limited number of clients, but backoff after the default number of steps
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		set.Status = *status
-		_, updateErr := ssu.client.KromeClient.AppsV1().StatefulSets(set.Namespace).UpdateStatus(context.TODO(), set, metav1.UpdateOptions{})
+		_, updateErr := ssu.client.AppsV1().StatefulSets(set.Namespace).UpdateStatus(context.TODO(), set, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
 
 		var updated = &kromev1.StatefulSet{}
-		if err := ssu.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err != nil {
+		if err := ssu.managerClient.Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err != nil {
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()
 		} else {

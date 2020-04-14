@@ -19,10 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	v1 "krome/pkg/apis/apps/v1"
-	"krome/pkg/client/clientset/versioned/scheme"
-
 	rest "k8s.io/client-go/rest"
+	v1 "krome.io/krome/pkg/apis/apps/v1"
+	"krome.io/krome/pkg/client/clientset/versioned/scheme"
 )
 
 type AppsV1Interface interface {

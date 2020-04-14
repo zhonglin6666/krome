@@ -28,10 +28,10 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	mgrclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kromev1 "krome/pkg/apis/apps/v1"
-	kromeutil "krome/pkg/utils/inplaceupdate"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
+	kromeutil "krome.io/krome/pkg/utils/inplaceupdate"
 )
 
 // StatefulPodControlInterface defines the interface that StatefulSetController uses to create, update, and delete Pods,
@@ -58,18 +58,18 @@ type StatefulPodControlInterface interface {
 
 func NewRealStatefulPodControl(
 	client clientset.Interface,
-	mgr manager.Manager,
+	managerClient mgrclient.Client,
 	recorder record.EventRecorder,
 ) StatefulPodControlInterface {
-	return &realStatefulPodControl{client, mgr, recorder}
+	return &realStatefulPodControl{client, managerClient, recorder}
 }
 
 // realStatefulPodControl implements StatefulPodControlInterface using a clientset.Interface to communicate with the
 // API server. The struct is package private as the internal details are irrelevant to importing packages.
 type realStatefulPodControl struct {
-	client   clientset.Interface
-	mgr      manager.Manager
-	recorder record.EventRecorder
+	client        clientset.Interface
+	managerClient mgrclient.Client
+	recorder      record.EventRecorder
 }
 
 func (spc *realStatefulPodControl) CreateStatefulPod(set *kromev1.StatefulSet, pod *v1.Pod) error {
@@ -100,14 +100,14 @@ func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.StatefulSet, p
 		}
 		// if the Pod does not conform to the StatefulSet's storage requirements, update the Pod's PVC's,
 		// dirty the Pod, and create any missing PVCs
-		//if !storageMatches(set, pod) {
-		//	updateStorage(set, pod)
-		//	consistent = false
-		//	if err := spc.createPersistentVolumeClaims(set, pod); err != nil {
-		//		spc.recordPodEvent("update", set, pod, err)
-		//		return err
-		//	}
-		//}
+		if !storageMatches(set, pod) {
+			updateStorage(set, pod)
+			consistent = false
+			if err := spc.createPersistentVolumeClaims(set, pod); err != nil {
+				spc.recordPodEvent("update", set, pod, err)
+				return err
+			}
+		}
 		// if the Pod is not dirty, do nothing
 		if consistent {
 			return nil
@@ -121,7 +121,7 @@ func (spc *realStatefulPodControl) UpdateStatefulPod(set *kromev1.StatefulSet, p
 		}
 
 		var updated = &v1.Pod{}
-		if err := spc.mgr.GetClient().Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err == nil {
+		if err := spc.managerClient.Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err == nil {
 			// make a copy so we don't mutate the shared cache
 			pod = updated.DeepCopy()
 		} else {
@@ -213,12 +213,12 @@ func (spc *realStatefulPodControl) InPlcateUpdateStatefulPod(set *kromev1.Statef
 	}
 
 	// update condition
-	if err := kromeutil.UpdateCondition(spc.mgr, pod); err != nil {
+	if err := kromeutil.UpdateCondition(spc.managerClient, pod); err != nil {
 		return err
 	}
 
 	// update image or other info
-	if err := kromeutil.UpdatePodInPlate(spc.mgr, pod.Namespace, pod.Name, spec); err != nil {
+	if err := kromeutil.UpdatePodInPlate(spc.managerClient, pod.Namespace, pod.Name, spec); err != nil {
 		return err
 	}
 

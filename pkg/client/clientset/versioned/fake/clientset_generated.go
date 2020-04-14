@@ -19,15 +19,14 @@ limitations under the License.
 package fake
 
 import (
-	clientset "krome/pkg/client/clientset/versioned"
-	appsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1"
-	fakeappsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1/fake"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
+	clientset "krome.io/krome/pkg/client/clientset/versioned"
+	appsv1 "krome.io/krome/pkg/client/clientset/versioned/typed/apps/v1"
+	fakeappsv1 "krome.io/krome/pkg/client/clientset/versioned/typed/apps/v1/fake"
 )
 
 // NewSimpleClientset returns a clientset that will respond with the provided objects.

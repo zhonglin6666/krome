@@ -19,9 +19,6 @@ limitations under the License.
 package externalversions
 
 import (
-	versioned "krome/pkg/client/clientset/versioned"
-	apps "krome/pkg/client/informers/externalversions/apps"
-	internalinterfaces "krome/pkg/client/informers/externalversions/internalinterfaces"
 	reflect "reflect"
 	sync "sync"
 	time "time"
@@ -30,6 +27,9 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
+	versioned "krome.io/krome/pkg/client/clientset/versioned"
+	apps "krome.io/krome/pkg/client/informers/externalversions/apps"
+	internalinterfaces "krome.io/krome/pkg/client/informers/externalversions/internalinterfaces"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.

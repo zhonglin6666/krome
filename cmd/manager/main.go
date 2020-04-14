@@ -38,8 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
-	"krome/pkg/apis"
-	"krome/pkg/controller"
+	"krome.io/krome/pkg/apis"
+	"krome.io/krome/pkg/controller"
 )
 
 // Change below variables to serve metrics on different host or port.

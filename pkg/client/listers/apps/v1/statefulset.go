@@ -19,11 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "krome/pkg/apis/apps/v1"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
+	v1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 // StatefulSetLister helps list StatefulSets.
@@ -35,18 +34,18 @@ type StatefulSetLister interface {
 	StatefulSetListerExpansion
 }
 
-// StatefulSetLister implements the StatefulSetLister interface.
-type StatefulSetLister struct {
+// statefulSetLister implements the StatefulSetLister interface.
+type statefulSetLister struct {
 	indexer cache.Indexer
 }
 
 // NewStatefulSetLister returns a new StatefulSetLister.
 func NewStatefulSetLister(indexer cache.Indexer) StatefulSetLister {
-	return &StatefulSetLister{indexer: indexer}
+	return &statefulSetLister{indexer: indexer}
 }
 
 // List lists all StatefulSets in the indexer.
-func (s *StatefulSetLister) List(selector labels.Selector) (ret []*v1.StatefulSet, err error) {
+func (s *statefulSetLister) List(selector labels.Selector) (ret []*v1.StatefulSet, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.StatefulSet))
 	})
@@ -54,8 +53,8 @@ func (s *StatefulSetLister) List(selector labels.Selector) (ret []*v1.StatefulSe
 }
 
 // StatefulSets returns an object that can list and get StatefulSets.
-func (s *StatefulSetLister) StatefulSets(namespace string) StatefulSetNamespaceLister {
-	return StatefulSetNamespaceLister{indexer: s.indexer, namespace: namespace}
+func (s *statefulSetLister) StatefulSets(namespace string) StatefulSetNamespaceLister {
+	return statefulSetNamespaceLister{indexer: s.indexer, namespace: namespace}
 }
 
 // StatefulSetNamespaceLister helps list and get StatefulSets.
@@ -67,15 +66,15 @@ type StatefulSetNamespaceLister interface {
 	StatefulSetNamespaceListerExpansion
 }
 
-// StatefulSetNamespaceLister implements the StatefulSetNamespaceLister
+// statefulSetNamespaceLister implements the StatefulSetNamespaceLister
 // interface.
-type StatefulSetNamespaceLister struct {
+type statefulSetNamespaceLister struct {
 	indexer   cache.Indexer
 	namespace string
 }
 
 // List lists all StatefulSets in the indexer for a given namespace.
-func (s StatefulSetNamespaceLister) List(selector labels.Selector) (ret []*v1.StatefulSet, err error) {
+func (s statefulSetNamespaceLister) List(selector labels.Selector) (ret []*v1.StatefulSet, err error) {
 	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.StatefulSet))
 	})
@@ -83,13 +82,13 @@ func (s StatefulSetNamespaceLister) List(selector labels.Selector) (ret []*v1.St
 }
 
 // Get retrieves the StatefulSet from the indexer for a given namespace and name.
-func (s StatefulSetNamespaceLister) Get(name string) (*v1.StatefulSet, error) {
+func (s statefulSetNamespaceLister) Get(name string) (*v1.StatefulSet, error) {
 	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("StatefulSet"), name)
+		return nil, errors.NewNotFound(v1.Resource("statefulset"), name)
 	}
 	return obj.(*v1.StatefulSet), nil
 }

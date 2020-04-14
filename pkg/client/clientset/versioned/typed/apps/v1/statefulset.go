@@ -20,14 +20,14 @@ package v1
 
 import (
 	"context"
-	v1 "krome/pkg/apis/apps/v1"
-	scheme "krome/pkg/client/clientset/versioned/scheme"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
+	v1 "krome.io/krome/pkg/apis/apps/v1"
+	scheme "krome.io/krome/pkg/client/clientset/versioned/scheme"
 )
 
 // StatefulSetsGetter has a method to return a StatefulSetInterface.
@@ -38,9 +38,9 @@ type StatefulSetsGetter interface {
 
 // StatefulSetInterface has methods to work with StatefulSet resources.
 type StatefulSetInterface interface {
-	Create(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.CreateOptions) (*v1.StatefulSet, error)
-	Update(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (*v1.StatefulSet, error)
-	UpdateStatus(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (*v1.StatefulSet, error)
+	Create(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.CreateOptions) (*v1.StatefulSet, error)
+	Update(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (*v1.StatefulSet, error)
+	UpdateStatus(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (*v1.StatefulSet, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.StatefulSet, error)
@@ -50,26 +50,26 @@ type StatefulSetInterface interface {
 	StatefulSetExpansion
 }
 
-// StatefulSets implements StatefulSetInterface
-type StatefulSets struct {
+// statefulSets implements StatefulSetInterface
+type statefulSets struct {
 	client rest.Interface
 	ns     string
 }
 
 // newStatefulSets returns a StatefulSets
-func newStatefulSets(c *AppsV1Client, namespace string) *StatefulSets {
-	return &StatefulSets{
+func newStatefulSets(c *AppsV1Client, namespace string) *statefulSets {
+	return &statefulSets{
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
 }
 
-// Get takes name of the StatefulSet, and returns the corresponding StatefulSet object, and an error if there is any.
-func (c *StatefulSets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.StatefulSet, err error) {
+// Get takes name of the statefulSet, and returns the corresponding statefulSet object, and an error if there is any.
+func (c *statefulSets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.StatefulSet, err error) {
 	result = &v1.StatefulSet{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -78,7 +78,7 @@ func (c *StatefulSets) Get(ctx context.Context, name string, options metav1.GetO
 }
 
 // List takes label and field selectors, and returns the list of StatefulSets that match those selectors.
-func (c *StatefulSets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.StatefulSetList, err error) {
+func (c *statefulSets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.StatefulSetList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -86,7 +86,7 @@ func (c *StatefulSets) List(ctx context.Context, opts metav1.ListOptions) (resul
 	result = &v1.StatefulSetList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do().
@@ -94,8 +94,8 @@ func (c *StatefulSets) List(ctx context.Context, opts metav1.ListOptions) (resul
 	return
 }
 
-// Watch returns a watch.Interface that watches the requested StatefulSets.
-func (c *StatefulSets) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested statefulSets.
+func (c *statefulSets) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -103,34 +103,34 @@ func (c *StatefulSets) Watch(ctx context.Context, opts metav1.ListOptions) (watc
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch()
 }
 
-// Create takes the representation of a StatefulSet and creates it.  Returns the server's representation of the StatefulSet, and an error, if there is any.
-func (c *StatefulSets) Create(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.CreateOptions) (result *v1.StatefulSet, err error) {
+// Create takes the representation of a statefulSet and creates it.  Returns the server's representation of the statefulSet, and an error, if there is any.
+func (c *statefulSets) Create(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.CreateOptions) (result *v1.StatefulSet, err error) {
 	result = &v1.StatefulSet{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(StatefulSet).
+		Body(statefulSet).
 		Do().
 		Into(result)
 	return
 }
 
-// Update takes the representation of a StatefulSet and updates it. Returns the server's representation of the StatefulSet, and an error, if there is any.
-func (c *StatefulSets) Update(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (result *v1.StatefulSet, err error) {
+// Update takes the representation of a statefulSet and updates it. Returns the server's representation of the statefulSet, and an error, if there is any.
+func (c *statefulSets) Update(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (result *v1.StatefulSet, err error) {
 	result = &v1.StatefulSet{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("StatefulSets").
-		Name(StatefulSet.Name).
+		Resource("statefulsets").
+		Name(statefulSet.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(StatefulSet).
+		Body(statefulSet).
 		Do().
 		Into(result)
 	return
@@ -138,25 +138,25 @@ func (c *StatefulSets) Update(ctx context.Context, StatefulSet *v1.StatefulSet, 
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *StatefulSets) UpdateStatus(ctx context.Context, StatefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (result *v1.StatefulSet, err error) {
+func (c *statefulSets) UpdateStatus(ctx context.Context, statefulSet *v1.StatefulSet, opts metav1.UpdateOptions) (result *v1.StatefulSet, err error) {
 	result = &v1.StatefulSet{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("StatefulSets").
-		Name(StatefulSet.Name).
+		Resource("statefulsets").
+		Name(statefulSet.Name).
 		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(StatefulSet).
+		Body(statefulSet).
 		Do().
 		Into(result)
 	return
 }
 
-// Delete takes name of the StatefulSet and deletes it. Returns an error if one occurs.
-func (c *StatefulSets) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+// Delete takes name of the statefulSet and deletes it. Returns an error if one occurs.
+func (c *statefulSets) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		Name(name).
 		Body(&opts).
 		Do().
@@ -164,14 +164,14 @@ func (c *StatefulSets) Delete(ctx context.Context, name string, opts metav1.Dele
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *StatefulSets) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
+func (c *statefulSets) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
 	if listOpts.TimeoutSeconds != nil {
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -179,12 +179,12 @@ func (c *StatefulSets) DeleteCollection(ctx context.Context, opts metav1.DeleteO
 		Error()
 }
 
-// Patch applies the patch and returns the patched StatefulSet.
-func (c *StatefulSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.StatefulSet, err error) {
+// Patch applies the patch and returns the patched statefulSet.
+func (c *statefulSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.StatefulSet, err error) {
 	result = &v1.StatefulSet{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("StatefulSets").
+		Resource("statefulsets").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).

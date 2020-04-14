@@ -1,3 +1,19 @@
+/*
+Copyright 2020 The Krome Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package statefulset
 
 import (
@@ -12,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sclient "k8s.io/client-go/kubernetes"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -20,8 +37,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	kromev1 "krome/pkg/apis/apps/v1"
-	kromeclient "krome/pkg/client"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
+	kromeclient "krome.io/krome/pkg/client/clientset/versioned"
 )
 
 var (
@@ -47,7 +64,12 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
-	kromeClient, err := kromeclient.NewClient(mgr)
+	k8sClient, err := k8sclient.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	kromeClient, err := kromeclient.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +78,14 @@ func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
 		mgr:         mgr,
 		kromeClient: kromeClient,
 		control: NewDefaultStatefulSetControl(
-			NewRealStatefulPodControl(kromeClient.K8sClient, mgr, mgr.GetEventRecorderFor("realPodControl")),
-			NewRealStatefulSetStatusUpdater(kromeClient, mgr),
+			NewRealStatefulPodControl(k8sClient, mgr.GetClient(), mgr.GetEventRecorderFor("realPodControl")),
+			NewRealStatefulSetStatusUpdater(kromeClient, mgr.GetClient()),
 			mgr.GetEventRecorderFor("control"),
-			kromeClient.K8sClient,
-			mgr,
+			k8sClient,
+			mgr.GetClient(),
 		),
 		podControl: kubecontroller.RealPodControl{
-			KubeClient: kromeClient.K8sClient,
+			KubeClient: k8sClient,
 			Recorder:   mgr.GetEventRecorderFor("podControl"),
 		},
 	}, nil
@@ -111,7 +133,7 @@ var _ reconcile.Reconciler = &ReconcileStatefulSet{}
 type ReconcileStatefulSet struct {
 	mgr         manager.Manager
 	scheme      *runtime.Scheme
-	kromeClient *kromeclient.Client
+	kromeClient *kromeclient.Clientset
 
 	control    StatefulSetControlInterface
 	podControl kubecontroller.PodControlInterface
@@ -182,7 +204,7 @@ func (r *ReconcileStatefulSet) adoptOrphanRevisions(set *kromev1.StatefulSet) er
 		}
 	}
 	if hasOrphans {
-		fresh, err := r.kromeClient.KromeClient.AppsV1().StatefulSets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
+		fresh, err := r.kromeClient.AppsV1().StatefulSets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -215,7 +237,7 @@ func (r *ReconcileStatefulSet) getPodsForStatefulSet(set *kromev1.StatefulSet, s
 	// If any adoptions are attempted, we should first recheck for deletion with
 	// an uncached quorum read sometime after listing Pods (see #42639).
 	canAdoptFunc := kubecontroller.RecheckDeletionTimestamp(func() (metav1.Object, error) {
-		fresh, err := r.kromeClient.KromeClient.AppsV1().StatefulSets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
+		fresh, err := r.kromeClient.AppsV1().StatefulSets(set.Namespace).Get(context.TODO(), set.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}

@@ -26,11 +26,11 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/controller/history"
-	"krome/pkg/utils/inplaceupdate"
+	"krome.io/krome/pkg/utils/inplaceupdate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	mgrclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kromev1 "krome/pkg/apis/apps/v1"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 // StatefulSetControl implements the control logic for updating StatefulSets and their children Pods. It is implemented
@@ -62,12 +62,12 @@ func NewDefaultStatefulSetControl(
 	statusUpdater StatefulSetStatusUpdaterInterface,
 	recorder record.EventRecorder,
 	client clientset.Interface,
-	mgr manager.Manager) StatefulSetControlInterface {
+	managerClient mgrclient.Client) StatefulSetControlInterface {
 	return &defaultStatefulSetControl{
 		podControl:    podControl,
 		statusUpdater: statusUpdater,
 		recorder:      recorder,
-		mgr:           mgr,
+		managerClient: managerClient,
 		client:        client,
 	}
 }
@@ -76,7 +76,7 @@ type defaultStatefulSetControl struct {
 	podControl    StatefulPodControlInterface
 	statusUpdater StatefulSetStatusUpdaterInterface
 	recorder      record.EventRecorder
-	mgr           manager.Manager
+	managerClient mgrclient.Client
 	client        clientset.Interface
 }
 
@@ -147,7 +147,7 @@ func (ssc *defaultStatefulSetControl) ListRevisions(set *kromev1.StatefulSet) ([
 	}
 
 	var crs apps.ControllerRevisionList
-	if err := ssc.mgr.GetClient().List(context.TODO(), &crs, &client.ListOptions{LabelSelector: selector}); err != nil {
+	if err := ssc.managerClient.List(context.TODO(), &crs, &client.ListOptions{LabelSelector: selector}); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +212,7 @@ func (ssc *defaultStatefulSetControl) truncateHistory(
 	history = history[:(historyLen - historyLimit)]
 	for i := 0; i < len(history); i++ {
 		// if err := ssc.controllerHistory.DeleteControllerRevision(history[i]); err != nil {
-		if err := ssc.mgr.GetClient().Delete(context.TODO(), history[i], &client.DeleteOptions{}); err != nil {
+		if err := ssc.managerClient.Delete(context.TODO(), history[i], &client.DeleteOptions{}); err != nil {
 			return err
 		}
 	}
@@ -257,7 +257,7 @@ func (ssc *defaultStatefulSetControl) getStatefulSetRevisions(
 		// if the equivalent revision is not immediately prior we will roll back by incrementing the
 		// Revision of the equivalent revision
 		updateRevision, err = inplaceupdate.UpdateControllerRevision(
-			ssc.mgr,
+			ssc.managerClient,
 			equalRevisions[equalCount-1],
 			updateRevision.Revision)
 		if err != nil {

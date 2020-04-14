@@ -30,7 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/history"
 
-	kromev1 "krome/pkg/apis/apps/v1"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 var patchCodec = scheme.Codecs.LegacyCodec(kromev1.SchemeGroupVersion)

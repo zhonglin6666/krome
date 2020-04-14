@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	mgrclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // byRevision implements sort.Interface to allow ControllerRevisions to be sorted by Revision.
@@ -93,7 +93,7 @@ func CreateControllerRevision(c clientset.Interface, parent metav1.Object, revis
 	}
 }
 
-func UpdateControllerRevision(mgr manager.Manager, revision *apps.ControllerRevision, newRevision int64) (*apps.ControllerRevision, error) {
+func UpdateControllerRevision(managerClient mgrclient.Client, revision *apps.ControllerRevision, newRevision int64) (*apps.ControllerRevision, error) {
 	clone := revision.DeepCopy()
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if clone.Revision == newRevision {
@@ -101,13 +101,13 @@ func UpdateControllerRevision(mgr manager.Manager, revision *apps.ControllerRevi
 		}
 		clone.Revision = newRevision
 
-		updateErr := mgr.GetClient().Update(context.TODO(), clone, &client.UpdateOptions{})
+		updateErr := managerClient.Update(context.TODO(), clone, &client.UpdateOptions{})
 		if updateErr == nil {
 			return nil
 		}
 
 		var cr = &apps.ControllerRevision{}
-		if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{clone.Namespace, clone.Name}, cr); err != nil {
+		if err := managerClient.Get(context.TODO(), types.NamespacedName{clone.Namespace, clone.Name}, cr); err != nil {
 			// make a copy so we don't mutate the shared cache
 			clone = cr.DeepCopy()
 		}

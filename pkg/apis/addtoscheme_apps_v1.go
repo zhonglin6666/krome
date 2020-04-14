@@ -1,7 +1,7 @@
 package apis
 
 import (
-	v1 "krome/pkg/apis/apps/v1"
+	v1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 func init() {

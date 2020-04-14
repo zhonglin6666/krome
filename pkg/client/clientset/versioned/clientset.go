@@ -20,11 +20,11 @@ package versioned
 
 import (
 	"fmt"
-	appsv1 "krome/pkg/client/clientset/versioned/typed/apps/v1"
 
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
+	appsv1 "krome.io/krome/pkg/client/clientset/versioned/typed/apps/v1"
 )
 
 type Interface interface {

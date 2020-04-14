@@ -20,7 +20,6 @@ package fake
 
 import (
 	"context"
-	appsv1 "krome/pkg/apis/apps/v1"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -28,6 +27,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
+	appsv1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 // FakeStatefulSets implements StatefulSetInterface
@@ -36,14 +36,14 @@ type FakeStatefulSets struct {
 	ns   string
 }
 
-var StatefulSetsResource = schema.GroupVersionResource{Group: "apps.krome.io", Version: "v1", Resource: "StatefulSets"}
+var statefulsetsResource = schema.GroupVersionResource{Group: "apps.krome.io", Version: "v1", Resource: "statefulsets"}
 
-var StatefulSetsKind = schema.GroupVersionKind{Group: "apps.krome.io", Version: "v1", Kind: "StatefulSet"}
+var statefulsetsKind = schema.GroupVersionKind{Group: "apps.krome.io", Version: "v1", Kind: "StatefulSet"}
 
-// Get takes name of the StatefulSet, and returns the corresponding StatefulSet object, and an error if there is any.
+// Get takes name of the statefulSet, and returns the corresponding statefulSet object, and an error if there is any.
 func (c *FakeStatefulSets) Get(ctx context.Context, name string, options v1.GetOptions) (result *appsv1.StatefulSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(StatefulSetsResource, c.ns, name), &appsv1.StatefulSet{})
+		Invokes(testing.NewGetAction(statefulsetsResource, c.ns, name), &appsv1.StatefulSet{})
 
 	if obj == nil {
 		return nil, err
@@ -54,7 +54,7 @@ func (c *FakeStatefulSets) Get(ctx context.Context, name string, options v1.GetO
 // List takes label and field selectors, and returns the list of StatefulSets that match those selectors.
 func (c *FakeStatefulSets) List(ctx context.Context, opts v1.ListOptions) (result *appsv1.StatefulSetList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(StatefulSetsResource, StatefulSetsKind, c.ns, opts), &appsv1.StatefulSetList{})
+		Invokes(testing.NewListAction(statefulsetsResource, statefulsetsKind, c.ns, opts), &appsv1.StatefulSetList{})
 
 	if obj == nil {
 		return nil, err
@@ -73,17 +73,17 @@ func (c *FakeStatefulSets) List(ctx context.Context, opts v1.ListOptions) (resul
 	return list, err
 }
 
-// Watch returns a watch.Interface that watches the requested StatefulSets.
+// Watch returns a watch.Interface that watches the requested statefulSets.
 func (c *FakeStatefulSets) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(StatefulSetsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchAction(statefulsetsResource, c.ns, opts))
 
 }
 
-// Create takes the representation of a StatefulSet and creates it.  Returns the server's representation of the StatefulSet, and an error, if there is any.
-func (c *FakeStatefulSets) Create(ctx context.Context, StatefulSet *appsv1.StatefulSet, opts v1.CreateOptions) (result *appsv1.StatefulSet, err error) {
+// Create takes the representation of a statefulSet and creates it.  Returns the server's representation of the statefulSet, and an error, if there is any.
+func (c *FakeStatefulSets) Create(ctx context.Context, statefulSet *appsv1.StatefulSet, opts v1.CreateOptions) (result *appsv1.StatefulSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(StatefulSetsResource, c.ns, StatefulSet), &appsv1.StatefulSet{})
+		Invokes(testing.NewCreateAction(statefulsetsResource, c.ns, statefulSet), &appsv1.StatefulSet{})
 
 	if obj == nil {
 		return nil, err
@@ -91,10 +91,10 @@ func (c *FakeStatefulSets) Create(ctx context.Context, StatefulSet *appsv1.State
 	return obj.(*appsv1.StatefulSet), err
 }
 
-// Update takes the representation of a StatefulSet and updates it. Returns the server's representation of the StatefulSet, and an error, if there is any.
-func (c *FakeStatefulSets) Update(ctx context.Context, StatefulSet *appsv1.StatefulSet, opts v1.UpdateOptions) (result *appsv1.StatefulSet, err error) {
+// Update takes the representation of a statefulSet and updates it. Returns the server's representation of the statefulSet, and an error, if there is any.
+func (c *FakeStatefulSets) Update(ctx context.Context, statefulSet *appsv1.StatefulSet, opts v1.UpdateOptions) (result *appsv1.StatefulSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(StatefulSetsResource, c.ns, StatefulSet), &appsv1.StatefulSet{})
+		Invokes(testing.NewUpdateAction(statefulsetsResource, c.ns, statefulSet), &appsv1.StatefulSet{})
 
 	if obj == nil {
 		return nil, err
@@ -104,9 +104,9 @@ func (c *FakeStatefulSets) Update(ctx context.Context, StatefulSet *appsv1.State
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeStatefulSets) UpdateStatus(ctx context.Context, StatefulSet *appsv1.StatefulSet, opts v1.UpdateOptions) (*appsv1.StatefulSet, error) {
+func (c *FakeStatefulSets) UpdateStatus(ctx context.Context, statefulSet *appsv1.StatefulSet, opts v1.UpdateOptions) (*appsv1.StatefulSet, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(StatefulSetsResource, "status", c.ns, StatefulSet), &appsv1.StatefulSet{})
+		Invokes(testing.NewUpdateSubresourceAction(statefulsetsResource, "status", c.ns, statefulSet), &appsv1.StatefulSet{})
 
 	if obj == nil {
 		return nil, err
@@ -114,26 +114,26 @@ func (c *FakeStatefulSets) UpdateStatus(ctx context.Context, StatefulSet *appsv1
 	return obj.(*appsv1.StatefulSet), err
 }
 
-// Delete takes name of the StatefulSet and deletes it. Returns an error if one occurs.
+// Delete takes name of the statefulSet and deletes it. Returns an error if one occurs.
 func (c *FakeStatefulSets) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(StatefulSetsResource, c.ns, name), &appsv1.StatefulSet{})
+		Invokes(testing.NewDeleteAction(statefulsetsResource, c.ns, name), &appsv1.StatefulSet{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeStatefulSets) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(StatefulSetsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionAction(statefulsetsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &appsv1.StatefulSetList{})
 	return err
 }
 
-// Patch applies the patch and returns the patched StatefulSet.
+// Patch applies the patch and returns the patched statefulSet.
 func (c *FakeStatefulSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *appsv1.StatefulSet, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(StatefulSetsResource, c.ns, name, pt, data, subresources...), &appsv1.StatefulSet{})
+		Invokes(testing.NewPatchSubresourceAction(statefulsetsResource, c.ns, name, pt, data, subresources...), &appsv1.StatefulSet{})
 
 	if obj == nil {
 		return nil, err

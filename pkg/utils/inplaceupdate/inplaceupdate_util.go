@@ -3,11 +3,7 @@ package inplaceupdate
 import (
 	"context"
 	"encoding/json"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"regexp"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"strconv"
 	"strings"
 
@@ -15,9 +11,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	managerClient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kromev1 "krome/pkg/apis/apps/v1"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 )
 
 var (
@@ -90,7 +90,7 @@ func CalculateInPlaceUpdateSpec(oldRevision, newRevision *appsv1.ControllerRevis
 	return updateSpec
 }
 
-func UpdateCondition(mgr manager.Manager, pod *v1.Pod) error {
+func UpdateCondition(managerClient managerClient.Client, pod *v1.Pod) error {
 	newCondition := v1.PodCondition{
 		Type:               kromev1.InPlaceUpdateReady,
 		LastTransitionTime: metav1.Now(),
@@ -100,7 +100,7 @@ func UpdateCondition(mgr manager.Manager, pod *v1.Pod) error {
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var p = &v1.Pod{}
-		if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{pod.Namespace, pod.Name}, p); err != nil {
+		if err := managerClient.Get(context.TODO(), types.NamespacedName{pod.Namespace, pod.Name}, p); err != nil {
 			return err
 		}
 
@@ -117,10 +117,10 @@ func UpdateCondition(mgr manager.Manager, pod *v1.Pod) error {
 	})
 }
 
-func UpdatePodInPlate(mgr manager.Manager, namespace, name string, spec *UpdateSpec) error {
+func UpdatePodInPlate(managerClient managerClient.Client, namespace, name string, spec *UpdateSpec) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var po = &v1.Pod{}
-		if err := mgr.GetClient().Get(context.TODO(), types.NamespacedName{namespace, name}, po); err != nil {
+		if err := managerClient.Get(context.TODO(), types.NamespacedName{namespace, name}, po); err != nil {
 			return err
 		}
 
@@ -133,7 +133,7 @@ func UpdatePodInPlate(mgr manager.Manager, namespace, name string, spec *UpdateS
 
 		// TODO record
 
-		return mgr.GetClient().Update(context.TODO(), po, &client.UpdateOptions{})
+		return managerClient.Update(context.TODO(), po, &client.UpdateOptions{})
 	})
 }
 

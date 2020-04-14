@@ -20,16 +20,16 @@ package v1
 
 import (
 	"context"
-	appsv1 "krome/pkg/apis/apps/v1"
-	versioned "krome/pkg/client/clientset/versioned"
-	internalinterfaces "krome/pkg/client/informers/externalversions/internalinterfaces"
-	v1 "krome/pkg/client/listers/apps/v1"
 	time "time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
+	appsv1 "krome.io/krome/pkg/apis/apps/v1"
+	versioned "krome.io/krome/pkg/client/clientset/versioned"
+	internalinterfaces "krome.io/krome/pkg/client/informers/externalversions/internalinterfaces"
+	v1 "krome.io/krome/pkg/client/listers/apps/v1"
 )
 
 // StatefulSetInformer provides access to a shared informer and lister for
@@ -39,7 +39,7 @@ type StatefulSetInformer interface {
 	Lister() v1.StatefulSetLister
 }
 
-type StatefulSetInformer struct {
+type statefulSetInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
@@ -77,14 +77,14 @@ func NewFilteredStatefulSetInformer(client versioned.Interface, namespace string
 	)
 }
 
-func (f *StatefulSetInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+func (f *statefulSetInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
 	return NewFilteredStatefulSetInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *StatefulSetInformer) Informer() cache.SharedIndexInformer {
+func (f *statefulSetInformer) Informer() cache.SharedIndexInformer {
 	return f.factory.InformerFor(&appsv1.StatefulSet{}, f.defaultInformer)
 }
 
-func (f *StatefulSetInformer) Lister() v1.StatefulSetLister {
+func (f *statefulSetInformer) Lister() v1.StatefulSetLister {
 	return v1.NewStatefulSetLister(f.Informer().GetIndexer())
 }

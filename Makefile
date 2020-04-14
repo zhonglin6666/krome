@@ -11,7 +11,7 @@ CURRENT_DIR=$(shell pwd)
 all: fmt build-exec image apply
 
 # Run tests
-test: generate fmt vet
+test: fmt
 	go test ./pkg/... ./cmd/... -coverprofile cover.out
 
 build-exec:
