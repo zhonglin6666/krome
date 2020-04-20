@@ -14,11 +14,14 @@ spec:
     spec:
       containers:
       - name: statefulset-example
-        image: nginx:1.12.2
+        image: nginx:1.13
         imagePullPolicy: IfNotPresent
-        volumeMounts:
-        - mountPath: /mnt
-          name: mnt
+        env:
+        - name: env-test-1
+          value: env-value-1
+#        volumeMounts:
+#        - mountPath: /mnt
+#          name: mnt
       ReadinessGates:
       - conditionType: InPlaceUpdateReady
   PodManagementPolicy: Parallel
@@ -28,14 +31,14 @@ spec:
       podUpdatePolicy: InPlaceIfPossible
       #maxUnavailable: 1
       #partition: 0
-  volumeClaimTemplates:
-  - metadata:
-      name: mnt
-      annotations:
-        volume.beta.kubernetes.io/storage-class: csi-hostpath-sc
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-          storage: 200Mi
+#  volumeClaimTemplates:
+#  - metadata:
+#      name: mnt
+#      annotations:
+#        volume.beta.kubernetes.io/storage-class: csi-hostpath-sc
+#    spec:
+#      accessModes:
+#      - ReadWriteOnce
+#      resources:
+#        requests:
+#          storage: 200Mi

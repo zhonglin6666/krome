@@ -12,7 +12,7 @@ all: fmt build-exec image apply
 
 # Run tests
 test: fmt
-	go test ./pkg/... ./cmd/... -coverprofile cover.out
+	go test ./pkg/controller/... -coverprofile cover.out
 
 build-exec:
 	mkdir -p ./_output

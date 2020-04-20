@@ -3,6 +3,30 @@ kind: CustomResourceDefinition
 metadata:
   name: statefulsets.apps.krome.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.replicas
+    description: The desired number of pods.
+    name: DESIRED
+    type: integer
+  - JSONPath: .status.replicas
+    description: The number of currently all pods.
+    name: CURRENT
+    type: integer
+  - JSONPath: .status.updatedReplicas
+    description: The number of pods updated.
+    name: UPDATED
+    type: integer
+  - JSONPath: .status.readyReplicas
+    description: The number of pods ready.
+    name: READY
+    type: integer
+  - JSONPath: .metadata.creationTimestamp
+    description: CreationTimestamp is a timestamp representing the server time when
+      this object was created. It is not guaranteed to be set in happens-before order
+      across separate operations. Clients may not set this value. It is represented
+      in RFC3339 form and is in UTC.
+    name: AGE
+    type: date
   group: apps.krome.io
   names:
     kind: StatefulSet
@@ -11,6 +35,10 @@ spec:
     singular: statefulset
   scope: Namespaced
   subresources:
+    scale:
+      labelSelectorPath: .status.labelSelector
+      specReplicasPath: .spec.replicas
+      statusReplicasPath: .status.replicas
     status: {}
   validation:
     openAPIV3Schema:
@@ -6243,6 +6271,11 @@ spec:
                 controller that have a Ready Condition.
               format: int32
               type: integer
+            replicas:
+              description: replicas is the number of Pods created by the StatefulSet
+                controller.
+              format: int32
+              type: integer
             updateRevision:
               description: updateRevision, if not empty, indicates the version of
                 the StatefulSet used to generate Pods in the sequence [replicas-updatedReplicas,replicas)
@@ -6255,6 +6288,7 @@ spec:
           required:
           - currentReplicas
           - readyReplicas
+          - replicas
           - updatedReplicas
           type: object
       type: object

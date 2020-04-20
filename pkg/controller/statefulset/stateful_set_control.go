@@ -15,6 +15,9 @@ package statefulset
 
 import (
 	"context"
+	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog"
 	"math"
 	"sort"
 
@@ -313,6 +316,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		return nil, err
 	}
 
+	logrus.Infof("zzlin defaultStatefulSetControl updateStatefulSet set: %v", set.Name)
+
 	// set the generation, and revisions in the returned status
 	status := kromev1.StatefulSetStatus{}
 	status.ObservedGeneration = set.Generation
@@ -543,36 +548,39 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
-	//maxUnavailable := 1
-	//if set.Spec.UpdateStrategy.RollingUpdate != nil {
-	//	maxUnavailable, err =  intstrutil.GetValueFromIntOrPercent(intstrutil.ValueOrDefault(
-	//		set.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable, intstrutil.FromInt(1)), replicaCount, false)
-	//	if err != nil {
-	//		return &status, err
-	//	}
-	//	if set.Spec.UpdateStrategy.RollingUpdate.Paused {
-	//		return &status, err
-	//	}
-	//}
-	//
-	//var unavailablePods []string
-	//upd
-
-	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
 	updateMin := 0
-	if set.Spec.UpdateStrategy.RollingUpdate != nil {
-		updateMin = int(*set.Spec.UpdateStrategy.RollingUpdate.Partition)
-	}
+	//if set.Spec.UpdateStrategy.RollingUpdate != nil {
+	//	updateMin = int(*set.Spec.UpdateStrategy.RollingUpdate.Partition)
+	//}
 	// we terminate the Pod with the largest ordinal that does not match the update revision.
 	for target := len(replicas) - 1; target >= updateMin; target-- {
+
 		// delete the Pod if it is not already terminating and does not match the update revision.
 		if getPodRevision(replicas[target]) != updateRevision.Name && !isTerminating(replicas[target]) {
 			logrus.Infof("StatefulSet %s/%s terminating Pod %s for update",
 				set.Namespace,
 				set.Name,
 				replicas[target].Name)
-			// err := ssc.podControl.DeleteStatefulPod(set, replicas[target])
-			_, err := ssc.inPlaceUpdatePod(set, replicas[target], updateRevision, revisions)
+			inplacing, inplaceUpdateErr := ssc.inPlaceUpdatePodOrNot(set, replicas[target], updateRevision, revisions)
+			if inplaceUpdateErr != nil {
+				if errors.IsConflict(inplaceUpdateErr) {
+					return &status, err
+				}
+				// If it failed to in-place update && error is not conflict && podUpdatePolicy is not InPlaceOnly,
+				// then we should try to recreate this pod
+				klog.Warningf("StatefulSet %s/%s failed to in-place update Pod %s, so it will back off to ReCreate",
+					set.Namespace, set.Name, replicas[target].Name)
+			}
+
+			if !inplacing || inplaceUpdateErr != nil {
+				klog.V(2).Infof("StatefulSet %s/%s terminating Pod %s for update",
+					set.Namespace,
+					set.Name,
+					replicas[target].Name)
+				if err := ssc.podControl.DeleteStatefulPod(set, replicas[target]); err != nil {
+					return &status, err
+				}
+			}
 			status.CurrentReplicas--
 			return &status, err
 		}
@@ -591,13 +599,30 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	return &status, nil
 }
 
+func (ssc *defaultStatefulSetControl) inPlaceUpdatePodOrNot(
+	set *kromev1.StatefulSet,
+	pod *v1.Pod,
+	updateRevision *apps.ControllerRevision,
+	revisions []*apps.ControllerRevision) (bool, error) {
+	if set.Spec.UpdateStrategy.RollingUpdate == nil {
+		return false, nil
+	}
+
+	switch set.Spec.UpdateStrategy.RollingUpdate.PodUpdatePolicy {
+	case kromev1.InPlaceIfPossiblePodUpdateStrategyType, kromev1.InPlaceOnlyPodUpdateStrategyType:
+		return ssc.inPlaceUpdatePod(set, pod, updateRevision, revisions)
+	case kromev1.RecreatePodUpdateStrategyType:
+		return true, ssc.podControl.DeleteStatefulPod(set, pod)
+	}
+	return false, fmt.Errorf("not implement pod update policy")
+}
+
 // updateStatefulSetStatus updates set's Status to be equal to status. If status indicates a complete update, it is
 // mutated to indicate completion. If status is semantically equivalent to set's Status no update is performed. If the
 // returned error is nil, the update is successful.
 func (ssc *defaultStatefulSetControl) updateStatefulSetStatus(
 	set *kromev1.StatefulSet,
 	status *kromev1.StatefulSetStatus) error {
-
 	// complete any in progress rolling update if necessary
 	completeRollingUpdate(set, status)
 

@@ -190,7 +190,7 @@ type StatefulSetStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// replicas is the number of Pods created by the StatefulSet controller.
-	Replicas int32 `json:"readyReplicas"`
+	Replicas int32 `json:"replicas"`
 
 	// readyReplicas is the number of Pods created by the StatefulSet controller that have a Ready Condition.
 	ReadyReplicas int32 `json:"readyReplicas"`
@@ -227,9 +227,15 @@ type StatefulSetStatus struct {
 // StatefulSet is the Schema for the StatefulSets API
 // +k8s:openapi-gen=true
 // +k8s:defaulter-gen=true
-// +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=sts
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=StatefulSets,scope=Namespaced
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
+// +kubebuilder:printcolumn:name="DESIRED",type="integer",JSONPath=".spec.replicas",description="The desired number of pods."
+// +kubebuilder:printcolumn:name="CURRENT",type="integer",JSONPath=".status.replicas",description="The number of currently all pods."
+// +kubebuilder:printcolumn:name="UPDATED",type="integer",JSONPath=".status.updatedReplicas",description="The number of pods updated."
+// +kubebuilder:printcolumn:name="READY",type="integer",JSONPath=".status.readyReplicas",description="The number of pods ready."
+// +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp",description="CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC."
 type StatefulSet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

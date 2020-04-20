@@ -58,7 +58,7 @@ func (ssu *realStatefulSetStatusUpdater) UpdateStatefulSetStatus(
 		}
 
 		var updated = &kromev1.StatefulSet{}
-		if err := ssu.managerClient.Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err != nil {
+		if err := ssu.managerClient.Get(context.TODO(), types.NamespacedName{set.Namespace, set.Name}, updated); err == nil {
 			// make a copy so we don't mutate the shared cache
 			set = updated.DeepCopy()
 		} else {

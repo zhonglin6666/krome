@@ -1,7 +1,0 @@
-apiVersion: apps.krome.io/v1
-kind: StatefulSet
-metadata:
-  name: example-StatefulSet
-spec:
-  # Add fields here
-  size: 3

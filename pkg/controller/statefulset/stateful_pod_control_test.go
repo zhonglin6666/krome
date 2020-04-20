@@ -73,36 +73,36 @@ func TestStatefulPodControlCreatePods(t *testing.T) {
 	}
 }
 
-//func TestStatefulPodControlCreatePodExists(t *testing.T) {
-//	recorder := record.NewFakeRecorder(10)
-//	fakeClient := &fakek8sclient.Clientset{}
-//	sch := scheme.Scheme
-//	sb := kromev1.SchemeBuilder
-//	sb.AddToScheme(sch)
-//	ss := newStatefulSet(3)
-//	pod := newStatefulSetPod(ss, 0)
-//	fakeMgrClient := mgrclient.NewFakeClientWithScheme(sch, ss)
-//
-//	podControl := NewRealStatefulPodControl(fakeClient, fakeMgrClient, recorder)
-//	control := NewRealStatefulPodControl(fakeClient, nil, nil, pvcLister, recorder)
-//	fakeClient.AddReactor("create", "persistentvolumeclaims", func(action core.Action) (bool, runtime.Object, error) {
-//		create := action.(core.CreateAction)
-//		return true, create.GetObject(), nil
-//	})
-//	fakeClient.AddReactor("create", "pods", func(action core.Action) (bool, runtime.Object, error) {
-//		return true, pod, apierrors.NewAlreadyExists(action.GetResource().GroupResource(), pod.Name)
-//	})
-//	if err := control.CreateStatefulPod(ss, pod); !apierrors.IsAlreadyExists(err) {
-//		t.Errorf("Failed to create Pod error: %s", err)
-//	}
-//	events := collectEvents(recorder.Events)
-//	if eventCount := len(events); eventCount != 0 {
-//		t.Errorf("Pod and PVC exist: got %d events, but want 0", eventCount)
-//		for i := range events {
-//			t.Log(events[i])
-//		}
-//	}
-//}
+func TestStatefulPodControlCreatePodExists(t *testing.T) {
+	recorder := record.NewFakeRecorder(10)
+	fakeClient := &fakek8sclient.Clientset{}
+	sch := scheme.Scheme
+	sb := kromev1.SchemeBuilder
+	sb.AddToScheme(sch)
+	ss := newStatefulSet(3)
+	pod := newStatefulSetPod(ss, 0)
+	fakeMgrClient := mgrclient.NewFakeClientWithScheme(sch, ss)
+
+	podControl := NewRealStatefulPodControl(fakeClient, fakeMgrClient, recorder)
+	fakeClient.AddReactor("create", "persistentvolumeclaims", func(action core.Action) (bool, runtime.Object, error) {
+		create := action.(core.CreateAction)
+		return true, create.GetObject(), nil
+	})
+	fakeClient.AddReactor("create", "pods", func(action core.Action) (bool, runtime.Object, error) {
+		return true, pod, apierrors.NewAlreadyExists(action.GetResource().GroupResource(), pod.Name)
+	})
+	if err := podControl.CreateStatefulPod(ss, pod); !apierrors.IsAlreadyExists(err) {
+		t.Errorf("Failed to create Pod error: %s", err)
+	}
+
+	events := collectEvents(recorder.Events)
+	if eventCount := len(events); eventCount != 0 {
+		t.Errorf("Pod and PVC exist: got %d events, but want 0", eventCount)
+		for i := range events {
+			t.Log(events[i])
+		}
+	}
+}
 
 func collectEvents(source <-chan string) []string {
 	done := false
