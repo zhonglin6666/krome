@@ -1,20 +1,20 @@
 apiVersion: apps.krome.io/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: statefulset-example
+  name: deploy-example
 spec:
   replicas: 4
   selector:
     matchLabels:
-      app: statefulset-example
+      app: deploy-example
   template:
     metadata:
       labels:
-        app: statefulset-example
+        app: deploy-example
     spec:
       containers:
-      - name: statefulset-example
-        image: nginx
+      - name: deploy-example
+        image: nginx:1.13
         imagePullPolicy: IfNotPresent
         env:
         - name: env-test-1
@@ -22,6 +22,9 @@ spec:
 #        volumeMounts:
 #        - mountPath: /mnt
 #          name: mnt
+      readinessGates:
+      - conditionType: InPlaceUpdateReady
+  podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:

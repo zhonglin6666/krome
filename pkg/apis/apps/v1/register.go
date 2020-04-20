@@ -36,8 +36,17 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
 		&StatefulSet{},
-		&StatefulSetList{},
-	)
+		&StatefulSetList{})
+
+	scheme.AddKnownTypes(
+		SchemeGroupVersion,
+		&ReplicaSet{},
+		&ReplicaSetList{})
+
+	scheme.AddKnownTypes(
+		SchemeGroupVersion,
+		&Deployment{},
+		&DeploymentList{})
 
 	// register the type in the scheme
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

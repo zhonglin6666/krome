@@ -70,6 +70,8 @@ rules:
   - apps.krome.io
   resources:
   - '*'
+  - replicasets
+  - deployments
   verbs:
   - create
   - delete

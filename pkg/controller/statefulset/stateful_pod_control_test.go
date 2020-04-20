@@ -17,6 +17,7 @@ limitations under the License.
 package statefulset
 
 import (
+	"errors"
 	"strings"
 	"testing"
 

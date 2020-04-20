@@ -316,8 +316,6 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		return nil, err
 	}
 
-	logrus.Infof("zzlin defaultStatefulSetControl updateStatefulSet set: %v", set.Name)
-
 	// set the generation, and revisions in the returned status
 	status := kromev1.StatefulSetStatus{}
 	status.ObservedGeneration = set.Generation
@@ -415,7 +413,8 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		return &status, nil
 	}
 
-	monotonic := !allowsBurst(set)
+	// monotonic := !allowsBurst(set)
+	monotonic := true
 
 	// Examine each replica with respect to its ordinal
 	for i := range replicas {
