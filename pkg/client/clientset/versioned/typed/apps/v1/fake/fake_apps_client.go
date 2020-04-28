@@ -28,6 +28,14 @@ type FakeAppsV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeAppsV1) Deployments(namespace string) v1.DeploymentInterface {
+	return &FakeDeployments{c, namespace}
+}
+
+func (c *FakeAppsV1) ReplicaSets(namespace string) v1.ReplicaSetInterface {
+	return &FakeReplicaSets{c, namespace}
+}
+
 func (c *FakeAppsV1) StatefulSets(namespace string) v1.StatefulSetInterface {
 	return &FakeStatefulSets{c, namespace}
 }

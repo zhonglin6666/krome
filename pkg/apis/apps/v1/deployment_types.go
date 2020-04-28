@@ -9,16 +9,6 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type DeploymentStrategyType string
-
-const (
-	// Kill all existing pods before creating new ones.
-	RecreateDeploymentStrategyType DeploymentStrategyType = "Recreate"
-
-	// Replace the old ReplicaSets by new one using rolling update i.e gradually scale down the old ReplicaSets and scale up the new one.
-	RollingUpdateDeploymentStrategyType DeploymentStrategyType = "RollingUpdate"
-)
-
 // DeploymentSpec defines the desired state of Deployment
 type DeploymentSpec struct {
 	// Number of desired pods. This is a pointer to distinguish between explicit
@@ -63,6 +53,16 @@ type DeploymentSpec struct {
 	ProgressDeadlineSeconds *int32 `json:"progressDeadlineSeconds,omitempty" protobuf:"varint,9,opt,name=progressDeadlineSeconds"`
 }
 
+type DeploymentStrategyType string
+
+const (
+	// Kill all existing pods before creating new ones.
+	RecreateDeploymentStrategyType DeploymentStrategyType = "Recreate"
+
+	// Replace the old ReplicaSets by new one using rolling update i.e gradually scale down the old ReplicaSets and scale up the new one.
+	RollingUpdateDeploymentStrategyType DeploymentStrategyType = "RollingUpdate"
+)
+
 // DeploymentStrategy describes how to replace existing pods with new ones.
 type DeploymentStrategy struct {
 	// Type of deployment. Can be "Recreate" or "RollingUpdate". Default is RollingUpdate.
@@ -106,6 +106,22 @@ type RollingUpdateDeployment struct {
 	// at any time during the update is at most 130% of desired pods.
 	// +optional
 	MaxSurge *intstr.IntOrString `json:"maxSurge,omitempty" protobuf:"bytes,2,opt,name=maxSurge"`
+
+	// PodUpdatePolicy indicates how pods should be updated
+	// Default value is "ReCreate"
+	// +optional
+	PodUpdatePolicy PodUpdateStrategyType `json:"podUpdatePolicy,omitempty"`
+
+	// Paused indicates that the StatefulSet is paused.
+	// Default value is false
+	// +optional
+	Paused bool `json:"paused,omitempty"`
+
+	// UnorderedUpdate contains strategies for non-ordered update.
+	// If it is not nil, pods will be updated with non-ordered sequence.
+	// Noted that UnorderedUpdate can only be allowed to work with Parallel podManagementPolicy
+	// +optional
+	UnorderedUpdate *UnorderedUpdateStrategy `json:"unorderedUpdate,omitempty"`
 }
 
 // DeploymentStatus is the most recently observed status of the Deployment.
@@ -181,6 +197,7 @@ type DeploymentCondition struct {
 	Message string `json:"message,omitempty" protobuf:"bytes,5,opt,name=message"`
 }
 
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Deployment is the Schema for the deployments API

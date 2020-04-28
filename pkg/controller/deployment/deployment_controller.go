@@ -2,12 +2,17 @@ package deployment
 
 import (
 	"context"
+	"fmt"
+	"k8s.io/client-go/tools/record"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	k8sclient "k8s.io/client-go/kubernetes"
+	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -15,7 +20,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	appsv1 "krome.io/krome/pkg/apis/apps/v1"
+	kromev1 "krome.io/krome/pkg/apis/apps/v1"
+	kromeclient "krome.io/krome/pkg/client/clientset/versioned"
+)
+
+var (
+	// controllerKind contains the schema.GroupVersionKind for StatefulSet type.
+	controllerKind = kromev1.SchemeGroupVersion.WithKind("Deployment")
 )
 
 /**
@@ -26,12 +37,35 @@ import (
 // Add creates a new Deployment Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
 func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	r, err := newReconciler(mgr)
+	if err != nil {
+		return err
+	}
+
+	return add(mgr, r)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileDeployment{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
+	//k8sClient, err := k8sclient.NewForConfig(mgr.GetConfig())
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	kromeClient, err := kromeclient.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReconcileDeployment{
+		client:      mgr.GetClient(),
+		scheme:      mgr.GetScheme(),
+		kromeClient: kromeClient,
+		rsControl: RealRSControl{
+			KubeClient: kromeClient,
+		},
+		recorder: mgr.GetEventRecorderFor("deployment"),
+	}, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -43,15 +77,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource Deployment
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &kromev1.Deployment{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
 	// Watch for changes to secondary resource Pods and requeue the owner Deployment
-	err = c.Watch(&source.Kind{Type: &appsv1.ReplicaSet{}}, &handler.EnqueueRequestForOwner{
+	err = c.Watch(&source.Kind{Type: &kromev1.ReplicaSet{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
-		OwnerType:    &appsv1.Deployment{},
+		OwnerType:    &kromev1.Deployment{},
 	})
 	if err != nil {
 		return err
@@ -67,8 +101,13 @@ var _ reconcile.Reconciler = &ReconcileDeployment{}
 type ReconcileDeployment struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client      client.Client
+	scheme      *runtime.Scheme
+	kromeClient *kromeclient.Clientset
+
+	// rsControl is used for adopting/releasing replica sets.
+	rsControl kubecontroller.RSControlInterface
+	recorder  record.EventRecorder
 }
 
 // Reconcile reads that state of the cluster for a Deployment object and makes changes based on the state read
@@ -79,11 +118,8 @@ type ReconcileDeployment struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	//reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
-	//reqLogger.Info("Reconciling Deployment")
-
 	// Fetch the Deployment instance
-	instance := &appsv1.Deployment{}
+	instance := &kromev1.Deployment{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -96,8 +132,16 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
+	if instance.DeletionTimestamp != nil {
+		return reconcile.Result{}, nil
+	}
+
+	// List ReplicaSets owned by this Deployment, while reconciling ControllerRef
+	// through adotpion/orphaning
+	rsList, err := r.getReplicaSetsForDeployment(instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 
 	//// Set Deployment instance as the owner and controller
 	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
@@ -120,30 +164,45 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	//reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *appsv1.Deployment) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
+// getReplicaSetsForDeployment uses ControllerRefManager to reconcile
+// ControllerRef by adopting and orphaning.
+// It returns the list of ReplicaSets that this Deployment should manage.
+func (r *ReconcileDeployment) getReplicaSetsForDeployment(d *kromev1.Deployment) ([]*kromev1.ReplicaSet, error) {
+	selector, err := metav1.LabelSelectorAsSelector(d.Spec.Selector)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("error converting Deployment %v selector: %v", d.Name, err))
+		// This is a non-transient error, so don't retry.
+		return nil, nil
 	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+
+	// List all pods to include the pods that don't match the selector anymore but
+	// has a ControllerRef pointing to this Deployment.
+	var rsList = kromev1.ReplicaSetList{}
+	if err := r.client.List(context.TODO(), &rsList, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return nil, err
 	}
+
+	items := make([]*kromev1.ReplicaSet, len(rsList.Items))
+	for i, rs := range rsList.Items {
+		items[i] = rs.DeepCopy()
+	}
+
+	// If any adoptions are attempted, we should first recheck for deletion with
+	// an uncached quorum read sometime after listing ReplicaSets (see #42639).
+	canAdoptFunc := kubecontroller.RecheckDeletionTimestamp(func() (metav1.Object, error) {
+		fresh, err := r.kromeClient.AppsV1().Deployments(d.Namespace).Get(context.TODO(), d.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		if fresh.UID != d.UID {
+			return nil, fmt.Errorf("original Deployment %v/%v is gone: got uid %v, wanted %v", d.Namespace, d.Name, fresh.UID, d.UID)
+		}
+		return fresh, nil
+	})
+
+	cm := NewReplicaSetControllerRefManager(r.rsControl, d, selector, controllerKind, canAdoptFunc)
+	return cm.ClaimReplicaSets(items)
 }

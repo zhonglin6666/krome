@@ -27,6 +27,37 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
+func SetDefaults_Deployment(obj *Deployment) {
+	if obj.Spec.Strategy.Type == "" {
+		obj.Spec.Strategy.Type = RollingUpdateDeploymentStrategyType
+
+		// UpdateStragegy.RollingUpdate will take default values below.
+		obj.Spec.Strategy.RollingUpdate = &RollingUpdateDeployment{}
+	}
+
+	if obj.Spec.Strategy.Type == RollingUpdateDeploymentStrategyType {
+		if obj.Spec.Strategy.RollingUpdate == nil {
+			obj.Spec.Strategy.RollingUpdate = &RollingUpdateDeployment{}
+		}
+		if obj.Spec.Strategy.RollingUpdate.MaxUnavailable == nil {
+			maxUnavailable := intstr.FromInt(1)
+			obj.Spec.Strategy.RollingUpdate.MaxUnavailable = &maxUnavailable
+		}
+		if obj.Spec.Strategy.RollingUpdate.PodUpdatePolicy == "" {
+			obj.Spec.Strategy.RollingUpdate.PodUpdatePolicy = RecreatePodUpdateStrategyType
+		}
+	}
+
+	if obj.Spec.Replicas == nil {
+		obj.Spec.Replicas = new(int32)
+		*obj.Spec.Replicas = 1
+	}
+	if obj.Spec.RevisionHistoryLimit == nil {
+		obj.Spec.RevisionHistoryLimit = new(int32)
+		*obj.Spec.RevisionHistoryLimit = 10
+	}
+}
+
 // SetDefaults_StatefulSet set default values for StatefulSet.
 func SetDefaults_StatefulSet(obj *StatefulSet) {
 	if len(obj.Spec.PodManagementPolicy) == 0 {
@@ -34,13 +65,13 @@ func SetDefaults_StatefulSet(obj *StatefulSet) {
 	}
 
 	if obj.Spec.UpdateStrategy.Type == "" {
-		obj.Spec.UpdateStrategy.Type = appsv1.RollingUpdateStatefulSetStrategyType
+		obj.Spec.UpdateStrategy.Type = RollingUpdateStatefulSetStrategyType
 
 		// UpdateStrategy.RollingUpdate will take default values below.
 		obj.Spec.UpdateStrategy.RollingUpdate = &RollingUpdateStatefulSetStrategy{}
 	}
 
-	if obj.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType {
+	if obj.Spec.UpdateStrategy.Type == RollingUpdateStatefulSetStrategyType {
 		if obj.Spec.UpdateStrategy.RollingUpdate == nil {
 			obj.Spec.UpdateStrategy.RollingUpdate = &RollingUpdateStatefulSetStrategy{}
 		}

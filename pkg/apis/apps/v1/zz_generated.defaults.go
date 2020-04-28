@@ -30,6 +30,9 @@ func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&StatefulSet{}, func(obj interface{}) { SetObjectDefaults_StatefulSet(obj.(*StatefulSet)) })
 	scheme.AddTypeDefaultingFunc(&StatefulSetList{}, func(obj interface{}) { SetObjectDefaults_StatefulSetList(obj.(*StatefulSetList)) })
 
+	scheme.AddTypeDefaultingFunc(&Deployment{}, func(obj interface{}) { SetObjectDefaults_Deployment(obj.(*Deployment)) })
+	scheme.AddTypeDefaultingFunc(&DeploymentList{}, func(obj interface{}) { SetObjectDefaults_DeploymentList(obj.(*DeploymentList)) })
+
 	return nil
 }
 
@@ -41,5 +44,16 @@ func SetObjectDefaults_StatefulSetList(in *StatefulSetList) {
 	for i := range in.Items {
 		a := &in.Items[i]
 		SetObjectDefaults_StatefulSet(a)
+	}
+}
+
+func SetObjectDefaults_Deployment(in *Deployment) {
+	SetDefaults_Deployment(in)
+}
+
+func SetObjectDefaults_DeploymentList(in *DeploymentList) {
+	for i := range in.Items {
+		a := &in.Items[i]
+		SetObjectDefaults_Deployment(a)
 	}
 }

@@ -26,12 +26,22 @@ import (
 
 type AppsV1Interface interface {
 	RESTClient() rest.Interface
+	DeploymentsGetter
+	ReplicaSetsGetter
 	StatefulSetsGetter
 }
 
 // AppsV1Client is used to interact with features provided by the apps.krome.io group.
 type AppsV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *AppsV1Client) Deployments(namespace string) DeploymentInterface {
+	return newDeployments(c, namespace)
+}
+
+func (c *AppsV1Client) ReplicaSets(namespace string) ReplicaSetInterface {
+	return newReplicaSets(c, namespace)
 }
 
 func (c *AppsV1Client) StatefulSets(namespace string) StatefulSetInterface {
