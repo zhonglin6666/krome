@@ -173,6 +173,32 @@ func (o ReplicaSetsByCreationTimestamp) Less(i, j int) bool {
 	return o[i].CreationTimestamp.Before(&o[j].CreationTimestamp)
 }
 
+// ReplicaSetsBySizeNewer sorts a list of ReplicaSet by size in descending order, using their creation timestamp or name as a tie breaker.
+// By using the creation timestamp, this sorts from new to old replica sets.
+type ReplicaSetsBySizeNewer []*kromev1.ReplicaSet
+
+func (o ReplicaSetsBySizeNewer) Len() int      { return len(o) }
+func (o ReplicaSetsBySizeNewer) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+func (o ReplicaSetsBySizeNewer) Less(i, j int) bool {
+	if *(o[i].Spec.Replicas) == *(o[j].Spec.Replicas) {
+		return ReplicaSetsByCreationTimestamp(o).Less(j, i)
+	}
+	return *(o[i].Spec.Replicas) > *(o[j].Spec.Replicas)
+}
+
+// ReplicaSetsBySizeOlder sorts a list of ReplicaSet by size in descending order, using their creation timestamp or name as a tie breaker.
+// By using the creation timestamp, this sorts from old to new replica sets.
+type ReplicaSetsBySizeOlder []*kromev1.ReplicaSet
+
+func (o ReplicaSetsBySizeOlder) Len() int      { return len(o) }
+func (o ReplicaSetsBySizeOlder) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+func (o ReplicaSetsBySizeOlder) Less(i, j int) bool {
+	if *(o[i].Spec.Replicas) == *(o[j].Spec.Replicas) {
+		return ReplicaSetsByCreationTimestamp(o).Less(i, j)
+	}
+	return *(o[i].Spec.Replicas) > *(o[j].Spec.Replicas)
+}
+
 // findOldReplicaSets returns the old replica sets targeted by the given Deployment, with the given slice of RSes.
 // Note that the first set of old replica sets doesn't include the ones with no pods, and the second set of old replica sets include all old replica sets.
 func findOldReplicaSets(deployment *kromev1.Deployment, rsList []*kromev1.ReplicaSet) ([]*kromev1.ReplicaSet, []*kromev1.ReplicaSet) {
@@ -457,6 +483,32 @@ func hasProgressDeadline(d *kromev1.Deployment) bool {
 	return d.Spec.ProgressDeadlineSeconds != nil && *d.Spec.ProgressDeadlineSeconds != math.MaxInt32
 }
 
+// hasRevisionHistoryLimit checks if the Deployment d is expected to keep a specified number of
+// old replicaSets. These replicaSets are mainly kept with the purpose of rollback.
+// The RevisionHistoryLimit can start from 0 (no retained replicasSet). When set to math.MaxInt32,
+// the Deployment will keep all revisions.
+func hasRevisionHistoryLimit(d *kromev1.Deployment) bool {
+	return d.Spec.RevisionHistoryLimit != nil && *d.Spec.RevisionHistoryLimit != math.MaxInt32
+}
+
+// isSaturated checks if the new replica set is saturated by comparing its size with its deployment size.
+// Both the deployment and the replica set have to believe this replica set can own all of the desired
+// replicas in the deployment and the annotation helps in achieving that. All pods of the ReplicaSet
+// need to be available.
+func isSaturated(deployment *kromev1.Deployment, rs *kromev1.ReplicaSet) bool {
+	if rs == nil {
+		return false
+	}
+	desiredString := rs.Annotations[DesiredReplicasAnnotation]
+	desired, err := strconv.Atoi(desiredString)
+	if err != nil {
+		return false
+	}
+	return *(rs.Spec.Replicas) == *(deployment.Spec.Replicas) &&
+		int32(desired) == *(deployment.Spec.Replicas) &&
+		rs.Status.AvailableReplicas == *(deployment.Spec.Replicas)
+}
+
 // NewDeploymentCondition creates a new deployment condition.
 func NewDeploymentCondition(condType kromev1.DeploymentConditionType, status v1.ConditionStatus, reason, message string) *kromev1.DeploymentCondition {
 	return &kromev1.DeploymentCondition{
@@ -494,6 +546,27 @@ func filterOutCondition(conditions []kromev1.DeploymentCondition, condType krome
 		newConditions = append(newConditions, c)
 	}
 	return newConditions
+}
+
+// replicasAnnotationsNeedUpdate return true if ReplicasAnnotations need to be updated
+func replicasAnnotationsNeedUpdate(rs *kromev1.ReplicaSet, desiredReplicas, maxReplicas int32) bool {
+	if rs.Annotations == nil {
+		return true
+	}
+	desiredString := fmt.Sprintf("%d", desiredReplicas)
+	if hasString := rs.Annotations[DesiredReplicasAnnotation]; hasString != desiredString {
+		return true
+	}
+	maxString := fmt.Sprintf("%d", maxReplicas)
+	if hasString := rs.Annotations[MaxReplicasAnnotation]; hasString != maxString {
+		return true
+	}
+	return false
+}
+
+// getDesiredReplicasAnnotation returns the number of desired replicas
+func getDesiredReplicasAnnotation(rs *kromev1.ReplicaSet) (int32, bool) {
+	return getIntFromAnnotation(rs, DesiredReplicasAnnotation)
 }
 
 // newRSNewReplicas calculates the number of replicas a deployment's new RS should have.
@@ -570,4 +643,130 @@ func getReadyReplicaCountForReplicaSets(replicaSets []*kromev1.ReplicaSet) int32
 		}
 	}
 	return totalReadyReplicas
+}
+
+// findActiveOrLatest returns the only active or the latest replica set in case there is at most one active
+// replica set. If there are more active replica sets, then we should proportionally scale them.
+func findActiveOrLatest(newRS *kromev1.ReplicaSet, oldRSs []*kromev1.ReplicaSet) *kromev1.ReplicaSet {
+	if newRS == nil && len(oldRSs) == 0 {
+		return nil
+	}
+
+	sort.Sort(sort.Reverse(ReplicaSetsByCreationTimestamp(oldRSs)))
+	allRSs := filterActiveReplicaSets(append(oldRSs, newRS))
+
+	switch len(allRSs) {
+	case 0:
+		// If there is no active replica set then we should return the newest.
+		if newRS != nil {
+			return newRS
+		}
+		return oldRSs[0]
+	case 1:
+		return allRSs[0]
+	default:
+		return nil
+	}
+}
+
+// filterActiveReplicaSets returns replica sets that have (or at least ought to have) pods.
+func filterActiveReplicaSets(replicaSets []*kromev1.ReplicaSet) []*kromev1.ReplicaSet {
+	activeFilter := func(rs *kromev1.ReplicaSet) bool {
+		return rs != nil && *(rs.Spec.Replicas) > 0
+	}
+	return filterReplicaSets(replicaSets, activeFilter)
+}
+
+type filterRS func(rs *kromev1.ReplicaSet) bool
+
+// filterReplicaSets returns replica sets that are filtered by filterFn (all returned ones should match filterFn).
+func filterReplicaSets(RSes []*kromev1.ReplicaSet, filterFn filterRS) []*kromev1.ReplicaSet {
+	var filtered []*kromev1.ReplicaSet
+	for i := range RSes {
+		if filterFn(RSes[i]) {
+			filtered = append(filtered, RSes[i])
+		}
+	}
+	return filtered
+}
+
+// GetProportion will estimate the proportion for the provided replica set using 1. the current size
+// of the parent deployment, 2. the replica count that needs be added on the replica sets of the
+// deployment, and 3. the total replicas added in the replica sets of the deployment so far.
+func GetProportion(rs *kromev1.ReplicaSet, d kromev1.Deployment, deploymentReplicasToAdd, deploymentReplicasAdded int32) int32 {
+	if rs == nil || *(rs.Spec.Replicas) == 0 || deploymentReplicasToAdd == 0 || deploymentReplicasToAdd == deploymentReplicasAdded {
+		return int32(0)
+	}
+
+	rsFraction := getReplicaSetFraction(*rs, d)
+	allowed := deploymentReplicasToAdd - deploymentReplicasAdded
+
+	if deploymentReplicasToAdd > 0 {
+		// Use the minimum between the replica set fraction and the maximum allowed replicas
+		// when scaling up. This way we ensure we will not scale up more than the allowed
+		// replicas we can add.
+		return integer.Int32Min(rsFraction, allowed)
+	}
+	// Use the maximum between the replica set fraction and the maximum allowed replicas
+	// when scaling down. This way we ensure we will not scale down more than the allowed
+	// replicas we can remove.
+	return integer.Int32Max(rsFraction, allowed)
+}
+
+// getReplicaSetFraction estimates the fraction of replicas a replica set can have in
+// 1. a scaling event during a rollout or 2. when scaling a paused deployment.
+func getReplicaSetFraction(rs kromev1.ReplicaSet, d kromev1.Deployment) int32 {
+	// If we are scaling down to zero then the fraction of this replica set is its whole size (negative)
+	if *(d.Spec.Replicas) == int32(0) {
+		return -*(rs.Spec.Replicas)
+	}
+
+	deploymentReplicas := *(d.Spec.Replicas) + MaxSurge(d)
+	annotatedReplicas, ok := getMaxReplicasAnnotation(&rs)
+	if !ok {
+		// If we cannot find the annotation then fallback to the current deployment size. Note that this
+		// will not be an accurate proportion estimation in case other replica sets have different values
+		// which means that the deployment was scaled at some point but we at least will stay in limits
+		// due to the min-max comparisons in getProportion.
+		annotatedReplicas = d.Status.Replicas
+	}
+
+	// We should never proportionally scale up from zero which means rs.spec.replicas and annotatedReplicas
+	// will never be zero here.
+	newRSsize := (float64(*(rs.Spec.Replicas) * deploymentReplicas)) / float64(annotatedReplicas)
+	return integer.RoundToInt32(newRSsize) - *(rs.Spec.Replicas)
+}
+
+func getMaxReplicasAnnotation(rs *kromev1.ReplicaSet) (int32, bool) {
+	return getIntFromAnnotation(rs, MaxReplicasAnnotation)
+}
+
+func getIntFromAnnotation(rs *kromev1.ReplicaSet, annotationKey string) (int32, bool) {
+	annotationValue, ok := rs.Annotations[annotationKey]
+	if !ok {
+		return int32(0), false
+	}
+	intValue, err := strconv.Atoi(annotationValue)
+	if err != nil {
+		klog.V(2).Infof("Cannot convert the value %q with annotation key %q for the replica set %q", annotationValue, annotationKey, rs.Name)
+		return int32(0), false
+	}
+	return int32(intValue), true
+}
+
+// lastRevision finds the second max revision number in all replica sets (the last revision)
+func lastRevision(allRSs []*kromev1.ReplicaSet) int64 {
+	max, secMax := int64(0), int64(0)
+	for _, rs := range allRSs {
+		if v, err := revision(rs); err != nil {
+			// Skip the replica sets when it failed to parse their revision information
+			klog.V(4).Infof("Error: %v. Couldn't parse revision for replica set %#v, deployment controller will skip it when reconciling revisions.", err, rs)
+		} else if v >= max {
+			secMax = max
+			max = v
+		} else if v > secMax {
+			secMax = v
+		}
+	}
+	return secMax
 }

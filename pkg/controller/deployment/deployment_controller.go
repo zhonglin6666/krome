@@ -3,15 +3,12 @@ package deployment
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/tools/record"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -132,10 +129,6 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	if instance.DeletionTimestamp != nil {
-		return reconcile.Result{}, nil
-	}
-
 	// List ReplicaSets owned by this Deployment, while reconciling ControllerRef
 	// through adotpion/orphaning
 	rsList, err := r.getReplicaSetsForDeployment(instance)
@@ -143,28 +136,44 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	//// Set Deployment instance as the owner and controller
-	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-	//	return reconcile.Result{}, err
-	//}
+	if instance.DeletionTimestamp != nil {
+		return reconcile.Result{}, r.syncStatusOnly(instance, rsList)
+	}
 
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		//reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
+	// Update deployment conditions with an Unknown condition when pausing/resuming
+	// a deployment. In this way, we can be sure that we won't timeout when a user
+	// resumes a Deployment with a set progressDeadlineSeconds.
+	if err = r.checkPausedConditions(instance); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	return reconcile.Result{}, nil
+	if instance.Spec.Paused {
+		return reconcile.Result{}, r.sync(instance, rsList)
+	}
+
+	// rollback is not re-entrant in case the underlying replica sets are updated with a new
+	// revision so we should ensure that we won't proceed to update replica sets until we
+	// make sure that the deployment has cleaned up its rollback spec in subsequent enqueues.
+	if getRollbackTo(instance) != nil {
+		return reconcile.Result{}, r.rollback(instance, rsList)
+	}
+
+	scalingEvent, err := r.isScalingEvent(instance, rsList)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if scalingEvent {
+		return reconcile.Result{}, r.sync(instance, rsList)
+	}
+
+	switch instance.Spec.Strategy.Type {
+	case kromev1.RecreateDeploymentStrategyType:
+		return reconcile.Result{}, r.rolloutRecreate(instance, rsList, podMap)
+	case kromev1.RollingUpdateDeploymentStrategyType:
+		return reconcile.Result{}, r.rolloutRolling(instance, rsList)
+	}
+
+	return reconcile.Result{}, fmt.Errorf("unexpected deployment strategy type: %s", instance.Spec.Strategy.Type)
 }
 
 // getReplicaSetsForDeployment uses ControllerRefManager to reconcile

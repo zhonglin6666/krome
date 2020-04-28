@@ -294,22 +294,22 @@ func (r *ReconcileDeployment) getNewReplicaSet(d *kromev1.Deployment, rsList, ol
 // have the effect of hastening the rollout progress, which could produce a higher proportion of unavailable
 // replicas in the event of a problem with the rolled out template. Should run only on scaling events or
 // when a deployment is paused and not during the normal rollout process.
-func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.ReplicaSet, oldRSs []*apps.ReplicaSet) error {
+func (r *ReconcileDeployment) scale(deployment *kromev1.Deployment, newRS *kromev1.ReplicaSet, oldRSs []*kromev1.ReplicaSet) error {
 	// If there is only one active replica set then we should scale that up to the full count of the
 	// deployment. If there is no active replica set, then we should scale up the newest replica set.
-	if activeOrLatest := deploymentutil.FindActiveOrLatest(newRS, oldRSs); activeOrLatest != nil {
+	if activeOrLatest := findActiveOrLatest(newRS, oldRSs); activeOrLatest != nil {
 		if *(activeOrLatest.Spec.Replicas) == *(deployment.Spec.Replicas) {
 			return nil
 		}
-		_, _, err := dc.scaleReplicaSetAndRecordEvent(activeOrLatest, *(deployment.Spec.Replicas), deployment)
+		_, _, err := r.scaleReplicaSetAndRecordEvent(activeOrLatest, *(deployment.Spec.Replicas), deployment)
 		return err
 	}
 
 	// If the new replica set is saturated, old replica sets should be fully scaled down.
 	// This case handles replica set adoption during a saturated new replica set.
-	if deploymentutil.IsSaturated(deployment, newRS) {
-		for _, old := range controller.FilterActiveReplicaSets(oldRSs) {
-			if _, _, err := dc.scaleReplicaSetAndRecordEvent(old, 0, deployment); err != nil {
+	if isSaturated(deployment, newRS) {
+		for _, old := range filterActiveReplicaSets(oldRSs) {
+			if _, _, err := r.scaleReplicaSetAndRecordEvent(old, 0, deployment); err != nil {
 				return err
 			}
 		}
@@ -319,13 +319,13 @@ func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.R
 	// There are old replica sets with pods and the new replica set is not saturated.
 	// We need to proportionally scale all replica sets (new and old) in case of a
 	// rolling deployment.
-	if deploymentutil.IsRollingUpdate(deployment) {
-		allRSs := controller.FilterActiveReplicaSets(append(oldRSs, newRS))
-		allRSsReplicas := deploymentutil.GetReplicaCountForReplicaSets(allRSs)
+	if isRollingUpdate(deployment) {
+		allRSs := filterActiveReplicaSets(append(oldRSs, newRS))
+		allRSsReplicas := getReplicaCountForReplicaSets(allRSs)
 
 		allowedSize := int32(0)
 		if *(deployment.Spec.Replicas) > 0 {
-			allowedSize = *(deployment.Spec.Replicas) + deploymentutil.MaxSurge(*deployment)
+			allowedSize = *(deployment.Spec.Replicas) + MaxSurge(*deployment)
 		}
 
 		// Number of additional replicas that can be either added or removed from the total
@@ -341,11 +341,11 @@ func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.R
 		var scalingOperation string
 		switch {
 		case deploymentReplicasToAdd > 0:
-			sort.Sort(controller.ReplicaSetsBySizeNewer(allRSs))
+			sort.Sort(ReplicaSetsBySizeNewer(allRSs))
 			scalingOperation = "up"
 
 		case deploymentReplicasToAdd < 0:
-			sort.Sort(controller.ReplicaSetsBySizeOlder(allRSs))
+			sort.Sort(ReplicaSetsBySizeOlder(allRSs))
 			scalingOperation = "down"
 		}
 
@@ -360,7 +360,7 @@ func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.R
 			// Estimate proportions if we have replicas to add, otherwise simply populate
 			// nameToSize with the current sizes for each replica set.
 			if deploymentReplicasToAdd != 0 {
-				proportion := deploymentutil.GetProportion(rs, *deployment, deploymentReplicasToAdd, deploymentReplicasAdded)
+				proportion := GetProportion(rs, *deployment, deploymentReplicasToAdd, deploymentReplicasAdded)
 
 				nameToSize[rs.Name] = *(rs.Spec.Replicas) + proportion
 				deploymentReplicasAdded += proportion
@@ -383,7 +383,7 @@ func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.R
 			}
 
 			// TODO: Use transactions when we have them.
-			if _, _, err := dc.scaleReplicaSet(rs, nameToSize[rs.Name], deployment, scalingOperation); err != nil {
+			if _, _, err := r.scaleReplicaSet(rs, nameToSize[rs.Name], deployment, scalingOperation); err != nil {
 				// Return as soon as we fail, the deployment is requeued
 				return err
 			}
@@ -392,7 +392,7 @@ func (dc *DeploymentController) scale(deployment *apps.Deployment, newRS *apps.R
 	return nil
 }
 
-func (dc *DeploymentController) scaleReplicaSetAndRecordEvent(rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment) (bool, *apps.ReplicaSet, error) {
+func (r *ReconcileDeployment) scaleReplicaSetAndRecordEvent(rs *kromev1.ReplicaSet, newScale int32, deployment *kromev1.Deployment) (bool, *kromev1.ReplicaSet, error) {
 	// No need to scale
 	if *(rs.Spec.Replicas) == newScale {
 		return false, rs, nil
@@ -403,26 +403,26 @@ func (dc *DeploymentController) scaleReplicaSetAndRecordEvent(rs *apps.ReplicaSe
 	} else {
 		scalingOperation = "down"
 	}
-	scaled, newRS, err := dc.scaleReplicaSet(rs, newScale, deployment, scalingOperation)
+	scaled, newRS, err := r.scaleReplicaSet(rs, newScale, deployment, scalingOperation)
 	return scaled, newRS, err
 }
 
-func (dc *DeploymentController) scaleReplicaSet(rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment, scalingOperation string) (bool, *apps.ReplicaSet, error) {
+func (r *ReconcileDeployment) scaleReplicaSet(rs *kromev1.ReplicaSet, newScale int32, deployment *kromev1.Deployment, scalingOperation string) (bool, *kromev1.ReplicaSet, error) {
 
 	sizeNeedsUpdate := *(rs.Spec.Replicas) != newScale
 
-	annotationsNeedUpdate := deploymentutil.ReplicasAnnotationsNeedUpdate(rs, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+deploymentutil.MaxSurge(*deployment))
+	annotationsNeedUpdate := replicasAnnotationsNeedUpdate(rs, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+MaxSurge(*deployment))
 
 	scaled := false
 	var err error
 	if sizeNeedsUpdate || annotationsNeedUpdate {
 		rsCopy := rs.DeepCopy()
 		*(rsCopy.Spec.Replicas) = newScale
-		deploymentutil.SetReplicasAnnotations(rsCopy, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+deploymentutil.MaxSurge(*deployment))
-		rs, err = dc.client.AppsV1().ReplicaSets(rsCopy.Namespace).Update(rsCopy)
+		setReplicasAnnotations(rsCopy, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+MaxSurge(*deployment))
+		rs, err = r.kromeClient.AppsV1().ReplicaSets(rsCopy.Namespace).Update(context.TODO(), rsCopy, metav1.UpdateOptions{})
 		if err == nil && sizeNeedsUpdate {
 			scaled = true
-			dc.eventRecorder.Eventf(deployment, v1.EventTypeNormal, "ScalingReplicaSet", "Scaled %s replica set %s to %d", scalingOperation, rs.Name, newScale)
+			r.recorder.Eventf(deployment, v1.EventTypeNormal, "ScalingReplicaSet", "Scaled %s replica set %s to %d", scalingOperation, rs.Name, newScale)
 		}
 	}
 	return scaled, rs, err
@@ -431,23 +431,23 @@ func (dc *DeploymentController) scaleReplicaSet(rs *apps.ReplicaSet, newScale in
 // cleanupDeployment is responsible for cleaning up a deployment ie. retains all but the latest N old replica sets
 // where N=d.Spec.RevisionHistoryLimit. Old replica sets are older versions of the podtemplate of a deployment kept
 // around by default 1) for historical reasons and 2) for the ability to rollback a deployment.
-func (dc *DeploymentController) cleanupDeployment(oldRSs []*apps.ReplicaSet, deployment *apps.Deployment) error {
-	if !deploymentutil.HasRevisionHistoryLimit(deployment) {
+func (r *ReconcileDeployment) cleanupDeployment(oldRSs []*kromev1.ReplicaSet, deployment *kromev1.Deployment) error {
+	if !hasRevisionHistoryLimit(deployment) {
 		return nil
 	}
 
 	// Avoid deleting replica set with deletion timestamp set
-	aliveFilter := func(rs *apps.ReplicaSet) bool {
+	aliveFilter := func(rs *kromev1.ReplicaSet) bool {
 		return rs != nil && rs.ObjectMeta.DeletionTimestamp == nil
 	}
-	cleanableRSes := controller.FilterReplicaSets(oldRSs, aliveFilter)
+	cleanableRSes := filterReplicaSets(oldRSs, aliveFilter)
 
 	diff := int32(len(cleanableRSes)) - *deployment.Spec.RevisionHistoryLimit
 	if diff <= 0 {
 		return nil
 	}
 
-	sort.Sort(controller.ReplicaSetsByCreationTimestamp(cleanableRSes))
+	sort.Sort(ReplicaSetsByCreationTimestamp(cleanableRSes))
 	klog.V(4).Infof("Looking to cleanup old replica sets for deployment %q", deployment.Name)
 
 	for i := int32(0); i < diff; i++ {
@@ -457,7 +457,7 @@ func (dc *DeploymentController) cleanupDeployment(oldRSs []*apps.ReplicaSet, dep
 			continue
 		}
 		klog.V(4).Infof("Trying to cleanup replica set %q for deployment %q", rs.Name, deployment.Name)
-		if err := dc.client.AppsV1().ReplicaSets(rs.Namespace).Delete(rs.Name, nil); err != nil && !errors.IsNotFound(err) {
+		if err := r.kromeClient.AppsV1().ReplicaSets(rs.Namespace).Delete(context.TODO(), rs.Name, metav1.DeleteOptions{}); err != nil && !errors.IsNotFound(err) {
 			// Return error instead of aggregating and continuing DELETEs on the theory
 			// that we may be overloading the api server.
 			return err
@@ -525,14 +525,14 @@ func calculateStatus(allRSs []*kromev1.ReplicaSet, newRS *kromev1.ReplicaSet, de
 //
 // rsList should come from getReplicaSetsForDeployment(d).
 // podMap should come from getPodMapForDeployment(d, rsList).
-func (dc *DeploymentController) isScalingEvent(d *apps.Deployment, rsList []*apps.ReplicaSet) (bool, error) {
-	newRS, oldRSs, err := dc.getAllReplicaSetsAndSyncRevision(d, rsList, false)
+func (r *ReconcileDeployment) isScalingEvent(d *kromev1.Deployment, rsList []*kromev1.ReplicaSet) (bool, error) {
+	newRS, oldRSs, err := r.getAllReplicaSetsAndSyncRevision(d, rsList, false)
 	if err != nil {
 		return false, err
 	}
 	allRSs := append(oldRSs, newRS)
-	for _, rs := range controller.FilterActiveReplicaSets(allRSs) {
-		desired, ok := deploymentutil.GetDesiredReplicasAnnotation(rs)
+	for _, rs := range filterActiveReplicaSets(allRSs) {
+		desired, ok := getDesiredReplicasAnnotation(rs)
 		if !ok {
 			continue
 		}
