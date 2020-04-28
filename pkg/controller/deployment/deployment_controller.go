@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/record"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
@@ -79,10 +81,19 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to secondary resource Pods and requeue the owner Deployment
+	// Watch for changes to secondary resource ReplicaSet and requeue the owner Deployment
 	err = c.Watch(&source.Kind{Type: &kromev1.ReplicaSet{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &kromev1.Deployment{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to secondary resource Pods and requeue the owner ReplicaSet
+	err = c.Watch(&source.Kind{Type: &v1.Pod{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &kromev1.ReplicaSet{},
 	})
 	if err != nil {
 		return err
@@ -132,6 +143,16 @@ func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Re
 	// List ReplicaSets owned by this Deployment, while reconciling ControllerRef
 	// through adotpion/orphaning
 	rsList, err := r.getReplicaSetsForDeployment(instance)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// List all Pods owned by this Deployment, grouped by their ReplicaSet.
+	// Current uses of the podMap are:
+	//
+	// * check if a Pod is labeled correctly with the pod-template-hash label.
+	// * check that no old Pods are running in the middle of Recreate Deployments.
+	podMap, err := r.getPodMapForDeployment(instance, rsList)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -214,4 +235,39 @@ func (r *ReconcileDeployment) getReplicaSetsForDeployment(d *kromev1.Deployment)
 
 	cm := NewReplicaSetControllerRefManager(r.rsControl, d, selector, controllerKind, canAdoptFunc)
 	return cm.ClaimReplicaSets(items)
+}
+
+// getPodMapForDeployment returns the Pods managed by a Deployment.
+//
+// It returns a map from ReplicaSet UID to a list of Pods controlled by that RS,
+// according to the Pod's ControllerRef.
+func (r *ReconcileDeployment) getPodMapForDeployment(d *kromev1.Deployment, rsList []*kromev1.ReplicaSet) (map[types.UID]*v1.PodList, error) {
+	// Get all Pods that potentially belong to this Deployment.
+	selector, err := metav1.LabelSelectorAsSelector(d.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+
+	var pods = &v1.PodList{}
+	if err := r.client.List(context.TODO(), pods, &client.ListOptions{LabelSelector: selector}); err != nil {
+		return nil, err
+	}
+	// Group Pods by their controller (if it's in rsList).
+	podMap := make(map[types.UID]*v1.PodList, len(rsList))
+	for _, rs := range rsList {
+		podMap[rs.UID] = &v1.PodList{}
+	}
+	for _, pod := range pods.Items {
+		// Do not ignore inactive Pods because Recreate Deployments need to verify that no
+		// Pods from older versions are running before spinning up new Pods.
+		controllerRef := metav1.GetControllerOf(&pod)
+		if controllerRef == nil {
+			continue
+		}
+		// Only append if we care about this UID.
+		if podList, ok := podMap[controllerRef.UID]; ok {
+			podList.Items = append(podList.Items, pod)
+		}
+	}
+	return podMap, nil
 }

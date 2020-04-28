@@ -259,7 +259,7 @@ func newStatefulSetPod(set *kromev1.StatefulSet, ordinal int) *v1.Pod {
 // the current revision. updateRevision is the name of the update revision. ordinal is the ordinal of the Pod. If the
 // returned error is nil, the returned Pod is valid.
 func newVersionedStatefulSetPod(currentSet, updateSet *kromev1.StatefulSet, currentRevision, updateRevision string, ordinal int) *v1.Pod {
-	if currentSet.Spec.UpdateStrategy.Type == apps.RollingUpdateStatefulSetStrategyType &&
+	if currentSet.Spec.UpdateStrategy.Type == kromev1.RollingUpdateStatefulSetStrategyType &&
 		// (currentSet.Spec.UpdateStrategy.RollingUpdate == nil && ordinal < int(currentSet.Status.CurrentReplicas)) ||
 		// (currentSet.Spec.UpdateStrategy.RollingUpdate != nil && ordinal < int(*currentSet.Spec.UpdateStrategy.RollingUpdate.Partition)) {
 		(currentSet.Spec.UpdateStrategy.RollingUpdate == nil && ordinal < int(currentSet.Status.CurrentReplicas)) {
@@ -376,7 +376,7 @@ func inconsistentStatus(set *kromev1.StatefulSet, status *kromev1.StatefulSetSta
 // is set to the empty string. status's currentReplicas is set to updateReplicas and its updateReplicas
 // are set to 0.
 func completeRollingUpdate(set *kromev1.StatefulSet, status *kromev1.StatefulSetStatus) {
-	if set.Spec.UpdateStrategy.Type == apps.RollingUpdateStatefulSetStrategyType &&
+	if set.Spec.UpdateStrategy.Type == kromev1.RollingUpdateStatefulSetStrategyType &&
 		status.UpdatedReplicas == status.Replicas &&
 		status.ReadyReplicas == status.Replicas {
 		status.CurrentReplicas = status.UpdatedReplicas

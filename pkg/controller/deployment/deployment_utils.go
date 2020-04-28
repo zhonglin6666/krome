@@ -2,12 +2,13 @@ package deployment
 
 import (
 	"fmt"
-	"k8s.io/utils/integer"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -22,6 +23,8 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	kubecontroller "k8s.io/kubernetes/pkg/controller"
+	labelsutil "k8s.io/kubernetes/pkg/util/labels"
+	"k8s.io/utils/integer"
 
 	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 )
@@ -41,6 +44,14 @@ const (
 	// is deployment.spec.replicas + maxSurge. Used by the underlying replica sets to estimate their
 	// proportions in case the deployment has surge replicas.
 	MaxReplicasAnnotation = "deployment.kubernetes.io/max-replicas"
+
+	// NewRSAvailableReason is added in a deployment when its newest replica set is made available
+	// ie. the number of new pods that have passed readiness checks and run for at least minReadySeconds
+	// is at least the minimum available pods that need to run for the deployment.
+	NewRSAvailableReason = "NewReplicaSetAvailable"
+	// TimedOutReason is added in a deployment when its newest replica set fails to show any progress
+	// within the given deadline (progressDeadlineSeconds).
+	TimedOutReason = "ProgressDeadlineExceeded"
 )
 
 // ReplicaSetControllerRefManager is used to manage controllerRef of ReplicaSets.
@@ -536,6 +547,11 @@ func setDeploymentCondition(status *kromev1.DeploymentStatus, condition kromev1.
 	status.Conditions = append(newConditions, condition)
 }
 
+// removeDeploymentCondition removes the deployment condition with the provided type.
+func removeDeploymentCondition(status *kromev1.DeploymentStatus, condType kromev1.DeploymentConditionType) {
+	status.Conditions = filterOutCondition(status.Conditions, condType)
+}
+
 // filterOutCondition returns a new slice of deployment conditions without conditions with the provided type.
 func filterOutCondition(conditions []kromev1.DeploymentCondition, condType kromev1.DeploymentConditionType) []kromev1.DeploymentCondition {
 	var newConditions []kromev1.DeploymentCondition
@@ -769,4 +785,151 @@ func lastRevision(allRSs []*kromev1.ReplicaSet) int64 {
 		}
 	}
 	return secMax
+}
+
+// setFromReplicaSetTemplate sets the desired PodTemplateSpec from a replica set template to the given deployment.
+func setFromReplicaSetTemplate(deployment *kromev1.Deployment, template v1.PodTemplateSpec) *kromev1.Deployment {
+	deployment.Spec.Template.ObjectMeta = template.ObjectMeta
+	deployment.Spec.Template.Spec = template.Spec
+	deployment.Spec.Template.ObjectMeta.Labels = labelsutil.CloneAndRemoveLabel(
+		deployment.Spec.Template.ObjectMeta.Labels,
+		apps.DefaultDeploymentUniqueLabelKey)
+	return deployment
+}
+
+// setDeploymentAnnotationsTo sets deployment's annotations as given RS's annotations.
+// This action should be done if and only if the deployment is rolling back to this rs.
+// Note that apply and revision annotations are not changed.
+func setDeploymentAnnotationsTo(deployment *kromev1.Deployment, rollbackToRS *kromev1.ReplicaSet) {
+	deployment.Annotations = getSkippedAnnotations(deployment.Annotations)
+	for k, v := range rollbackToRS.Annotations {
+		if !skipCopyAnnotation(k) {
+			deployment.Annotations[k] = v
+		}
+	}
+}
+
+func getSkippedAnnotations(annotations map[string]string) map[string]string {
+	skippedAnnotations := make(map[string]string)
+	for k, v := range annotations {
+		if skipCopyAnnotation(k) {
+			skippedAnnotations[k] = v
+		}
+	}
+	return skippedAnnotations
+}
+
+// deploymentComplete considers a deployment to be complete once all of its desired replicas
+// are updated and available, and no old pods are running.
+func deploymentComplete(deployment *kromev1.Deployment, newStatus *kromev1.DeploymentStatus) bool {
+	return newStatus.UpdatedReplicas == *(deployment.Spec.Replicas) &&
+		newStatus.Replicas == *(deployment.Spec.Replicas) &&
+		newStatus.AvailableReplicas == *(deployment.Spec.Replicas) &&
+		newStatus.ObservedGeneration >= deployment.Generation
+}
+
+// deploymentProgressing reports progress for a deployment. Progress is estimated by comparing the
+// current with the new status of the deployment that the controller is observing. More specifically,
+// when new pods are scaled up or become ready or available, or old pods are scaled down, then we
+// consider the deployment is progressing.
+func deploymentProgressing(deployment *kromev1.Deployment, newStatus *kromev1.DeploymentStatus) bool {
+	oldStatus := deployment.Status
+
+	// Old replicas that need to be scaled down
+	oldStatusOldReplicas := oldStatus.Replicas - oldStatus.UpdatedReplicas
+	newStatusOldReplicas := newStatus.Replicas - newStatus.UpdatedReplicas
+
+	return (newStatus.UpdatedReplicas > oldStatus.UpdatedReplicas) ||
+		(newStatusOldReplicas < oldStatusOldReplicas) ||
+		newStatus.ReadyReplicas > deployment.Status.ReadyReplicas ||
+		newStatus.AvailableReplicas > deployment.Status.AvailableReplicas
+}
+
+// deploymentTimedOut considers a deployment to have timed out once its condition that reports progress
+// is older than progressDeadlineSeconds or a Progressing condition with a TimedOutReason reason already
+// exists.
+func deploymentTimedOut(deployment *kromev1.Deployment, newStatus *kromev1.DeploymentStatus) bool {
+	if !hasProgressDeadline(deployment) {
+		return false
+	}
+
+	// Look for the Progressing condition. If it doesn't exist, we have no base to estimate progress.
+	// If it's already set with a TimedOutReason reason, we have already timed out, no need to check
+	// again.
+	condition := getDeploymentCondition(*newStatus, kromev1.DeploymentProgressing)
+	if condition == nil {
+		return false
+	}
+	// If the previous condition has been a successful rollout then we shouldn't try to
+	// estimate any progress. Scenario:
+	//
+	// * progressDeadlineSeconds is smaller than the difference between now and the time
+	//   the last rollout finished in the past.
+	// * the creation of a new ReplicaSet triggers a resync of the Deployment prior to the
+	//   cached copy of the Deployment getting updated with the status.condition that indicates
+	//   the creation of the new ReplicaSet.
+	//
+	// The Deployment will be resynced and eventually its Progressing condition will catch
+	// up with the state of the world.
+	if condition.Reason == NewRSAvailableReason {
+		return false
+	}
+	if condition.Reason == TimedOutReason {
+		return true
+	}
+
+	// Look at the difference in seconds between now and the last time we reported any
+	// progress or tried to create a replica set, or resumed a paused deployment and
+	// compare against progressDeadlineSeconds.
+	from := condition.LastUpdateTime
+	now := nowFn()
+	delta := time.Duration(*deployment.Spec.ProgressDeadlineSeconds) * time.Second
+	timedOut := from.Add(delta).Before(now)
+
+	logrus.Infof("Deployment %q timed out (%t) [last progress check: %v - now: %v]", deployment.Name, timedOut, from, now)
+	return timedOut
+}
+
+// ReplicaSetToDeploymentCondition converts a replica set condition into a deployment condition.
+// Useful for promoting replica set failure conditions into deployments.
+func ReplicaSetToDeploymentCondition(cond kromev1.ReplicaSetCondition) kromev1.DeploymentCondition {
+	return kromev1.DeploymentCondition{
+		Type:               kromev1.DeploymentConditionType(cond.Type),
+		Status:             cond.Status,
+		LastTransitionTime: cond.LastTransitionTime,
+		LastUpdateTime:     cond.LastTransitionTime,
+		Reason:             cond.Reason,
+		Message:            cond.Message,
+	}
+}
+
+// NewRSNewReplicas calculates the number of replicas a deployment's new RS should have.
+// When one of the followings is true, we're rolling out the deployment; otherwise, we're scaling it.
+// 1) The new RS is saturated: newRS's replicas == deployment's replicas
+// 2) Max number of pods allowed is reached: deployment's replicas + maxSurge == all RSs' replicas
+func NewRSNewReplicas(deployment *kromev1.Deployment, allRSs []*kromev1.ReplicaSet, newRS *kromev1.ReplicaSet) (int32, error) {
+	switch deployment.Spec.Strategy.Type {
+	case kromev1.RollingUpdateDeploymentStrategyType:
+		// Check if we can scale up.
+		maxSurge, err := intstrutil.GetValueFromIntOrPercent(deployment.Spec.Strategy.RollingUpdate.MaxSurge, int(*(deployment.Spec.Replicas)), true)
+		if err != nil {
+			return 0, err
+		}
+		// Find the total number of pods
+		currentPodCount := getReplicaCountForReplicaSets(allRSs)
+		maxTotalPods := *(deployment.Spec.Replicas) + int32(maxSurge)
+		if currentPodCount >= maxTotalPods {
+			// Cannot scale up.
+			return *(newRS.Spec.Replicas), nil
+		}
+		// Scale up.
+		scaleUpCount := maxTotalPods - currentPodCount
+		// Do not exceed the number of desired replicas.
+		scaleUpCount = int32(integer.IntMin(int(scaleUpCount), int(*(deployment.Spec.Replicas)-*(newRS.Spec.Replicas))))
+		return *(newRS.Spec.Replicas) + scaleUpCount, nil
+	case kromev1.RecreateDeploymentStrategyType:
+		return *(deployment.Spec.Replicas), nil
+	default:
+		return 0, fmt.Errorf("deployment type %v isn't supported", deployment.Spec.Strategy.Type)
+	}
 }

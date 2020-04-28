@@ -18,6 +18,7 @@ package deployment
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/sirupsen/logrus"
@@ -44,7 +45,7 @@ func (r *ReconcileDeployment) rollback(d *kromev1.Deployment, rsList []*kromev1.
 			// If we still can't find the last revision, gives up rollback
 			r.emitRollbackWarningEvent(d, deploymentutil.RollbackRevisionNotFound, "Unable to find last revision")
 			// Gives up rollback
-			return r.updateDeploymentAndClearRollback(d)
+			return r.updateDeploymentAndClearRollbackTo(d)
 		}
 	}
 
@@ -56,15 +57,55 @@ func (r *ReconcileDeployment) rollback(d *kromev1.Deployment, rsList []*kromev1.
 		}
 		if v == rollbackTo.Revision {
 			logrus.Infof("Found replica set %s with desired revision: %d", rs.Name, v)
-
+			// rollback by copying podTemplate.Spec from the replica set
+			// revision number will be incremented during the next getAllReplicaSetsAndSyncRevision call
+			// no-op if the spec matches current deployment's podTemplate.Spec
+			performedRollback, err := r.rollbackToTemplate(d, rs)
+			if performedRollback && err == nil {
+				r.emitRollbackNormalEvent(d, fmt.Sprintf("Rolled back deployment %q to revision %d", d.Name, rollbackTo.Revision))
+			}
+			return err
 		}
 	}
+	r.emitRollbackWarningEvent(d, deploymentutil.RollbackRevisionNotFound, "Unable to find the revision to rollback to.")
+	// Gives up rollback
+	return r.updateDeploymentAndClearRollbackTo(d)
+}
+
+// rollbackToTemplate compares the templates of the provided deployment and replica set and
+// updates the deployment with the replica set template in case they are different. It also
+// cleans up the rollback spec so subsequent requeues of the deployment won't end up in here.
+func (r *ReconcileDeployment) rollbackToTemplate(d *kromev1.Deployment, rs *kromev1.ReplicaSet) (bool, error) {
+	performedRollback := false
+	if !deploymentutil.EqualIgnoreHash(&d.Spec.Template, &rs.Spec.Template) {
+		logrus.Infof("Rolling back deployment %q to template spec %+v", d.Name, rs.Spec.Template.Spec)
+		setFromReplicaSetTemplate(d, rs.Spec.Template)
+		// set RS (the old RS we'll rolling back to) annotations back to the deployment;
+		// otherwise, the deployment's current annotations (should be the same as current new RS) will be copied to the RS after the rollback.
+		//
+		// For example,
+		// A Deployment has old RS1 with annotation {change-cause:create}, and new RS2 {change-cause:edit}.
+		// Note that both annotations are copied from Deployment, and the Deployment should be annotated {change-cause:edit} as well.
+		// Now, rollback Deployment to RS1, we should update Deployment's pod-template and also copy annotation from RS1.
+		// Deployment is now annotated {change-cause:create}, and we have new RS1 {change-cause:create}, old RS2 {change-cause:edit}.
+		//
+		// If we don't copy the annotations back from RS to deployment on rollback, the Deployment will stay as {change-cause:edit},
+		// and new RS1 becomes {change-cause:edit} (copied from deployment after rollback), old RS2 {change-cause:edit}, which is not correct.
+		setDeploymentAnnotationsTo(d, rs)
+		performedRollback = true
+	} else {
+		logrus.Infof("Rolling back to a revision that contains the same template as current deployment %q, skipping rollback...", d.Name)
+		eventMsg := fmt.Sprintf("The rollback revision contains the same template as current deployment %q", d.Name)
+		r.emitRollbackWarningEvent(d, deploymentutil.RollbackTemplateUnchanged, eventMsg)
+	}
+
+	return performedRollback, r.updateDeploymentAndClearRollbackTo(d)
 }
 
 // updateDeploymentAndClearRollbackTo sets .spec.rollbackTo to nil and update the input deployment
 // It is assumed that the caller will have updated the deployment template appropriately (in case
 // we want to rollback).
-func (r *ReconcileDeployment) updateDeploymentAndClearRollback(d *kromev1.Deployment) error {
+func (r *ReconcileDeployment) updateDeploymentAndClearRollbackTo(d *kromev1.Deployment) error {
 	logrus.Infof("Cleans up rollbackTo of deployment %s", d.Name)
 	setRollbackTo(d, nil)
 	_, err := r.kromeClient.AppsV1().Deployments(d.Namespace).Update(context.TODO(), d, metav1.UpdateOptions{})

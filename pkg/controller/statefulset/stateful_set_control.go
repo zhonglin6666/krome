@@ -542,7 +542,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	// for the OnDelete strategy we short circuit. Pods will be updated when they are manually deleted.
-	if set.Spec.UpdateStrategy.Type == apps.OnDeleteStatefulSetStrategyType {
+	if set.Spec.UpdateStrategy.Type == kromev1.OnDeleteStatefulSetStrategyType {
 		return &status, nil
 	}
 

@@ -72,7 +72,7 @@ func (c *statefulSets) Get(ctx context.Context, name string, options metav1.GetO
 		Resource("statefulsets").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
@@ -89,7 +89,7 @@ func (c *statefulSets) List(ctx context.Context, opts metav1.ListOptions) (resul
 		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
@@ -106,7 +106,7 @@ func (c *statefulSets) Watch(ctx context.Context, opts metav1.ListOptions) (watc
 		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch(ctx)
+		Watch()
 }
 
 // Create takes the representation of a statefulSet and creates it.  Returns the server's representation of the statefulSet, and an error, if there is any.
@@ -117,7 +117,7 @@ func (c *statefulSets) Create(ctx context.Context, statefulSet *v1.StatefulSet, 
 		Resource("statefulsets").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(statefulSet).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
@@ -131,7 +131,7 @@ func (c *statefulSets) Update(ctx context.Context, statefulSet *v1.StatefulSet, 
 		Name(statefulSet.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(statefulSet).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
@@ -147,7 +147,7 @@ func (c *statefulSets) UpdateStatus(ctx context.Context, statefulSet *v1.Statefu
 		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(statefulSet).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }
@@ -159,7 +159,7 @@ func (c *statefulSets) Delete(ctx context.Context, name string, opts metav1.Dele
 		Resource("statefulsets").
 		Name(name).
 		Body(&opts).
-		Do(ctx).
+		Do().
 		Error()
 }
 
@@ -175,7 +175,7 @@ func (c *statefulSets) DeleteCollection(ctx context.Context, opts metav1.DeleteO
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
-		Do(ctx).
+		Do().
 		Error()
 }
 
@@ -189,7 +189,7 @@ func (c *statefulSets) Patch(ctx context.Context, name string, pt types.PatchTyp
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do(ctx).
+		Do().
 		Into(result)
 	return
 }

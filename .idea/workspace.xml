@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="BookmarkManager">
+    <bookmark url="file://$PROJECT_DIR$/pkg/controller/deployment/rolling.go" line="203" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="11c6baf4-54b5-4118-8fdf-5138c39289e3" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/pkg/controller/deployment/progress.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pkg/controller/deployment/recreate.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pkg/controller/deployment/rolling.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pkg/controller/deployment/deployment_controller.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/deployment/deployment_controller.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/controller/deployment/deployment_revision.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/deployment/rollback.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pkg/controller/deployment/sync.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/deployment/sync.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/controller/deployment/rollback.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/deployment/rollback.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go" beforeDir="false" afterPath="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -30,26 +38,62 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/deployment_controller.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-2646">
-              <caret line="21" column="1" lean-forward="true" selection-start-line="21" selection-start-column="1" selection-end-line="21" selection-end-column="1" />
+            <state relative-caret-position="906">
+              <caret line="192" column="53" lean-forward="true" selection-start-line="192" selection-start-column="53" selection-end-line="192" selection-end-column="53" />
               <folding>
-                <element signature="e#20#759#0" expanded="true" />
+                <element signature="e#20#689#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/rollback.go">
+        <entry file="file://$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="558">
-              <caret line="58" selection-start-line="58" selection-end-line="58" />
+            <state relative-caret-position="325">
+              <caret line="193" column="10" lean-forward="true" selection-start-line="193" selection-start-column="10" selection-end-line="193" selection-end-column="10" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="271">
+              <caret line="562" column="55" lean-forward="true" selection-start-line="562" selection-start-column="55" selection-end-line="562" selection-end-column="55" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="146">
+              <caret line="375" column="41" lean-forward="true" selection-start-line="375" selection-start-column="41" selection-end-line="375" selection-end-column="41" />
               <folding>
-                <element signature="e#591#730#0" expanded="true" />
+                <element signature="e#589#1038#0" expanded="true" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/rolling.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-1062">
+              <caret line="19" column="9" selection-start-line="19" selection-start-column="9" selection-end-line="19" selection-end-column="9" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/recreate.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="342">
+              <caret line="19" lean-forward="true" selection-start-line="19" selection-end-line="19" selection-end-column="45" />
             </state>
           </provider>
         </entry>
@@ -57,8 +101,11 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="270">
-              <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" selection-end-column="49" />
+            <state relative-caret-position="338">
+              <caret line="909" column="21" selection-start-line="909" selection-start-column="5" selection-end-line="909" selection-end-column="21" />
+              <folding>
+                <element signature="e#20#769#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -74,9 +121,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>successful</find>
-      <find>recordClaimEvent</find>
-      <find>inPlaceUpdatePod</find>
       <find>Reconcile</find>
       <find>DeploymentStrategyType</find>
       <find>unhealthy Pods starting with</find>
@@ -104,6 +148,9 @@
       <find>etAvailableReplicaCountForReplicaSets</find>
       <find>scale</find>
       <find>hasP</find>
+      <find>requeueStuckDeployment</find>
+      <find>syncRolloutStatus</find>
+      <find>v1</find>
     </findStrings>
     <replaceStrings>
       <replace />
@@ -134,12 +181,10 @@
         <option value="$PROJECT_DIR$/pkg/apis/addtoscheme_apps_v1.go" />
         <option value="$PROJECT_DIR$/pkg/utils/inplaceupdate/inplaceupdate_util.go" />
         <option value="$PROJECT_DIR$/pkg/controller/add_statefulset.go" />
-        <option value="$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go" />
         <option value="$PROJECT_DIR$/pkg/controller/statefulset/statefulset_controller.go" />
         <option value="$PROJECT_DIR$/tools.go" />
         <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils_test.go" />
         <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_status_updater_test.go" />
-        <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go" />
         <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_status_updater.go" />
         <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_pod_control.go" />
         <option value="$PROJECT_DIR$/Makefile" />
@@ -148,7 +193,6 @@
         <option value="$PROJECT_DIR$/example/deployment.yaml" />
         <option value="$PROJECT_DIR$/deploy/crds/apps.krome.io_StatefulSets_crd.yaml" />
         <option value="$PROJECT_DIR$/example/statefulset.yaml" />
-        <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go" />
         <option value="$PROJECT_DIR$/pkg/apis/apps/v1/replicaset_types.go" />
         <option value="$PROJECT_DIR$/pkg/apis/apps/v1/zz_generated.defaults.go" />
         <option value="$PROJECT_DIR$/pkg/apis/apps/v1/statefulset_types.go" />
@@ -159,18 +203,24 @@
         <option value="$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/replicaset.go" />
         <option value="$PROJECT_DIR$/pkg/controller/deployment/replicaset_control.go" />
         <option value="$PROJECT_DIR$/pkg/controller/deployment/sync.go" />
-        <option value="$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go" />
         <option value="$PROJECT_DIR$/cmd/manager/main.go" />
         <option value="$PROJECT_DIR$/pkg/controller/deployment/rollback.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/deployment/progress.go" />
         <option value="$PROJECT_DIR$/pkg/controller/deployment/deployment_controller.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/deployment/recreate.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/deployment/rolling.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go" />
+        <option value="$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go" />
+        <option value="$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="1874" />
-    <option name="y" value="109" />
-    <option name="width" value="1717" />
-    <option name="height" value="848" />
+    <option name="x" value="2308" />
+    <option name="y" value="184" />
+    <option name="width" value="1484" />
+    <option name="height" value="685" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -188,62 +238,13 @@
             <path>
               <item name="krome" type="b2602c69:ProjectViewProjectNode" />
               <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="cmd" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="cmd" type="462c0819:PsiDirectoryNode" />
-              <item name="manager" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="doc" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="example" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
               <item name="pkg" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="pkg" type="462c0819:PsiDirectoryNode" />
-              <item name="apis" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="pkg" type="462c0819:PsiDirectoryNode" />
-              <item name="apis" type="462c0819:PsiDirectoryNode" />
-              <item name="apps" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="pkg" type="462c0819:PsiDirectoryNode" />
-              <item name="apis" type="462c0819:PsiDirectoryNode" />
-              <item name="apps" type="462c0819:PsiDirectoryNode" />
-              <item name="v1" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="krome" type="b2602c69:ProjectViewProjectNode" />
               <item name="krome" type="462c0819:PsiDirectoryNode" />
               <item name="pkg" type="462c0819:PsiDirectoryNode" />
               <item name="controller" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="krome" type="b2602c69:ProjectViewProjectNode" />
-              <item name="krome" type="462c0819:PsiDirectoryNode" />
-              <item name="pkg" type="462c0819:PsiDirectoryNode" />
-              <item name="controller" type="462c0819:PsiDirectoryNode" />
-              <item name="deployment" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="krome" type="b2602c69:ProjectViewProjectNode" />
@@ -292,10 +293,10 @@
     </option>
   </component>
   <component name="ToolWindowManager">
-    <frame x="1874" y="109" width="1717" height="848" extended-state="0" />
+    <frame x="2308" y="184" width="1484" height="685" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.49885583" visible="true" weight="0.28674266" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.49885583" visible="true" weight="0.264993" />
       <window_info id="Structure" order="1" sideWeight="0.5011442" side_tool="true" weight="0.25508022" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
@@ -321,29 +322,6 @@
     <option name="version" value="1" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_pod_control.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="324">
-          <caret line="18" selection-start-line="18" selection-end-line="18" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/Makefile">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="252">
-          <caret line="14" column="28" selection-start-line="14" selection-start-column="28" selection-end-line="14" selection-end-column="28" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/deploy/crds/apps.krome.io_v1_statefulset_cr.yaml" />
-    <entry file="file://$PROJECT_DIR$/deploy/crds/apps.krome.io_statefulsets_crd.yaml" />
-    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils_test.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="460">
-          <caret line="404" column="5" lean-forward="true" selection-start-line="404" selection-start-column="5" selection-end-line="404" selection-end-column="5" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pkg/controller/add_replicaset.go">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -415,16 +393,6 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/deploy/crds/apps.krome.io_replicasets_crd.yaml">
       <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="290">
-          <caret line="227" column="69" selection-start-line="227" selection-start-column="69" selection-end-line="227" selection-end-column="69" />
-          <folding>
-            <element signature="e#589#1038#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/deploy/crds/apps.krome.io_StatefulSets_crd.yaml">
       <provider selected="true" editor-type-id="text-editor">
@@ -518,9 +486,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
     <entry file="file://$PROJECT_DIR$/vendor/sigs.k8s.io/controller-runtime/pkg/reconcile/reconcile.go">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="104">
@@ -599,13 +564,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="271">
-          <caret line="63" column="43" lean-forward="true" selection-start-line="63" selection-start-column="43" selection-end-line="63" selection-end-column="43" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../../k8s.io/kubernetes/pkg/controller/controller_utils.go">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="190">
@@ -630,13 +588,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/vendor/k8s.io/kubernetes/pkg/controller/deployment/util/deployment_util.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1670">
-          <caret line="374" selection-start-line="374" selection-end-line="377" selection-end-column="1" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/vendor/k8s.io/kubernetes/pkg/controller/controller_utils.go">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="104">
@@ -654,13 +605,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/sync.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-180">
-          <caret line="29" column="31" selection-start-line="29" selection-start-column="31" selection-end-line="29" selection-end-column="31" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/cmd/manager/main.go">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="392">
@@ -668,29 +612,114 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go">
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/rollback.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="270">
-          <caret line="15" lean-forward="true" selection-start-line="15" selection-end-line="15" selection-end-column="49" />
+        <state relative-caret-position="-506">
+          <caret line="42" column="33" lean-forward="true" selection-start-line="42" selection-start-column="33" selection-end-line="42" selection-end-column="33" />
+          <folding>
+            <element signature="e#591#908#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/rollback.go">
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/sync.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="558">
-          <caret line="58" selection-start-line="58" selection-end-line="58" />
+        <state relative-caret-position="404">
+          <caret line="494" column="39" lean-forward="true" selection-start-line="494" selection-start-column="39" selection-end-line="494" selection-end-column="39" />
           <folding>
-            <element signature="e#591#730#0" expanded="true" />
+            <element signature="e#591#1027#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/vendor/k8s.io/apimachinery/pkg/apis/meta/v1/types.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="332">
+          <caret line="246" column="4" selection-start-line="246" selection-start-column="4" selection-end-line="246" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/vendor/k8s.io/apimachinery/pkg/apis/meta/v1/controller_ref.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="269">
+          <caret line="35" column="23" lean-forward="true" selection-start-line="35" selection-start-column="23" selection-end-line="35" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/progress.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="306">
+          <caret line="17" lean-forward="true" selection-start-line="17" selection-end-line="17" />
+          <folding>
+            <element signature="e#591#745#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/vendor/k8s.io/kubernetes/pkg/controller/deployment/util/deployment_util.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="723">
+          <caret line="914" lean-forward="true" selection-start-line="914" selection-end-line="914" />
+          <folding>
+            <element signature="e#585#1171#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/recreate.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="342">
+          <caret line="19" lean-forward="true" selection-start-line="19" selection-end-line="19" selection-end-column="45" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/deployment_utils.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="338">
+          <caret line="909" column="21" selection-start-line="909" selection-start-column="5" selection-end-line="909" selection-end-column="21" />
+          <folding>
+            <element signature="e#20#769#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/rolling.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-1062">
+          <caret line="19" column="9" selection-start-line="19" selection-start-column="9" selection-end-line="19" selection-end-column="9" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pkg/controller/deployment/deployment_controller.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-2646">
-          <caret line="21" column="1" lean-forward="true" selection-start-line="21" selection-start-column="1" selection-end-line="21" selection-end-column="1" />
+        <state relative-caret-position="906">
+          <caret line="192" column="53" lean-forward="true" selection-start-line="192" selection-start-column="53" selection-end-line="192" selection-end-column="53" />
           <folding>
-            <element signature="e#20#759#0" expanded="true" />
+            <element signature="e#20#689#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/client/clientset/versioned/typed/apps/v1/statefulset.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="325">
+          <caret line="193" column="10" lean-forward="true" selection-start-line="193" selection-start-column="10" selection-end-line="193" selection-end-column="10" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_control.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="271">
+          <caret line="562" column="55" lean-forward="true" selection-start-line="562" selection-start-column="55" selection-end-line="562" selection-end-column="55" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pkg/controller/statefulset/stateful_set_utils.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="146">
+          <caret line="375" column="41" lean-forward="true" selection-start-line="375" selection-start-column="41" selection-end-line="375" selection-end-column="41" />
+          <folding>
+            <element signature="e#589#1038#0" expanded="true" />
           </folding>
         </state>
       </provider>
