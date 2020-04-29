@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: deploy-example
-        image: nginx:1.12.2
+        image: nginx:1.13
         imagePullPolicy: IfNotPresent
         env:
         - name: env-test-1
@@ -22,8 +22,8 @@ spec:
 #        volumeMounts:
 #        - mountPath: /mnt
 #          name: mnt
-      readinessGates:
-      - conditionType: InPlaceUpdateReady
+#      readinessGates:
+#      - conditionType: InPlaceUpdateReady
   podManagementPolicy: Parallel
   strategy:
     type: RollingUpdate

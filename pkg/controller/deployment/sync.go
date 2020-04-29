@@ -19,7 +19,6 @@ package deployment
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"reflect"
 	"sort"
 	"strconv"
@@ -146,8 +145,6 @@ func (r *ReconcileDeployment) getNewReplicaSet(d *kromev1.Deployment, rsList, ol
 	// Calculate revision number for this new replica set
 	newRevision := strconv.FormatInt(maxOldRevision+1, 10)
 
-	logrus.Infof("zzlin getNewReplicaSet existingNewRS: %v, maxOldRevision: %v, newRevision: %v", existingNewRS, maxOldRevision, newRevision)
-
 	// Latest replica set exists. We need to sync its annotations (includes copying all but
 	// annotationsToSkip from the parent deployment, and update revision, desiredReplicas,
 	// and maxReplicas) and also update the revision annotation in the deployment with the
@@ -189,7 +186,6 @@ func (r *ReconcileDeployment) getNewReplicaSet(d *kromev1.Deployment, rsList, ol
 		return nil, nil
 	}
 
-	logrus.Infof("zzlin new ReplicaSet does not exist====================")
 	// new ReplicaSet does not exist, create one.
 	newRSTemplate := *d.Spec.Template.DeepCopy()
 	podTemplateSpecHash := controller.ComputeHash(&newRSTemplate, d.Status.CollisionCount)
@@ -215,7 +211,6 @@ func (r *ReconcileDeployment) getNewReplicaSet(d *kromev1.Deployment, rsList, ol
 	}
 	allRSs := append(oldRSs, &newRS)
 	newReplicasCount, err := newRSNewReplicas(d, allRSs, &newRS)
-	logrus.Infof("zzlin newReplicasCount: %v err: %v", newReplicasCount, err)
 	if err != nil {
 		return nil, err
 	}
@@ -227,9 +222,7 @@ func (r *ReconcileDeployment) getNewReplicaSet(d *kromev1.Deployment, rsList, ol
 	// hash collisions. If there is any other error, we need to report it in the status of
 	// the Deployment.
 	alreadyExists := false
-	logrus.Infof("zzlin getNewReplicaSet newRS: %#v", newRS)
 	createdRS, err := r.kromeClient.AppsV1().ReplicaSets(d.Namespace).Create(context.TODO(), &newRS, metav1.CreateOptions{})
-	logrus.Infof("zzlin getNewReplicaSet createdRS: %#v, err: %v", createdRS, err)
 	switch {
 	// We may end up hitting this due to a slow cache or a fast resync of the Deployment.
 	case errors.IsAlreadyExists(err):

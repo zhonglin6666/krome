@@ -28,13 +28,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kromev1 "krome.io/krome/pkg/apis/apps/v1"
 	kromeclient "krome.io/krome/pkg/client/clientset/versioned"
 )
 
 // updateReplicaSetStatus attempts to update the Status.Replicas of the given ReplicaSet, with a single GET/PUT retry.
-func updateReplicaSetStatus(kromeClient *kromeclient.Clientset, rs *kromev1.ReplicaSet, newStatus kromev1.ReplicaSetStatus) (*kromev1.ReplicaSet, error) {
+func updateReplicaSetStatus(client client.Client, kromeClient *kromeclient.Clientset, rs *kromev1.ReplicaSet, newStatus kromev1.ReplicaSetStatus) (*kromev1.ReplicaSet, error) {
 	// This is the steady state. It happens when the ReplicaSet doesn't have any expectations, since
 	// we do a periodic relist every 30s. If the generations differ but the replicas are
 	// the same, a caller might've resized to the same replica count.
@@ -53,7 +54,7 @@ func updateReplicaSetStatus(kromeClient *kromeclient.Clientset, rs *kromev1.Repl
 	// same status.
 	newStatus.ObservedGeneration = rs.Generation
 
-	var updateErr error
+	var getErr, updateErr error
 	var updatedRS *kromev1.ReplicaSet
 	for i, rs := 0, rs; ; i++ {
 		logrus.Infof(fmt.Sprintf("Updating status for %v: %s/%s, ", rs.Kind, rs.Namespace, rs.Name) +
@@ -62,9 +63,8 @@ func updateReplicaSetStatus(kromeClient *kromeclient.Clientset, rs *kromev1.Repl
 			fmt.Sprintf("readyReplicas %d->%d, ", rs.Status.ReadyReplicas, newStatus.ReadyReplicas) +
 			fmt.Sprintf("availableReplicas %d->%d, ", rs.Status.AvailableReplicas, newStatus.AvailableReplicas) +
 			fmt.Sprintf("sequence No: %v->%v", rs.Status.ObservedGeneration, newStatus.ObservedGeneration))
-
 		rs.Status = newStatus
-		updatedRS, updateErr = kromeClient.AppsV1().ReplicaSets(rs.Namespace).Update(context.TODO(), rs, metav1.UpdateOptions{})
+		updatedRS, updateErr = kromeClient.AppsV1().ReplicaSets(rs.Namespace).UpdateStatus(context.TODO(), rs, metav1.UpdateOptions{})
 		if updateErr == nil {
 			return updatedRS, nil
 		}
@@ -75,12 +75,11 @@ func updateReplicaSetStatus(kromeClient *kromeclient.Clientset, rs *kromev1.Repl
 
 		// TODO zzlin
 		// Update the ReplicaSet with the latest resource version for the next poll
-		//var getRS = &kromev1.ReplicaSet{}
-		//if rs, getErr = kromeClient.Get(rs.Name, metav1.GetOptions{}); getErr != nil {
-		//	// If the GET fails we can't trust status.Replicas anymore. This error
-		//	// is bound to be more interesting than the update failure.
-		//	return nil, getErr
-		//}
+		if rs, getErr = kromeClient.AppsV1().ReplicaSets(rs.Namespace).Get(context.TODO(), rs.Name, metav1.GetOptions{}); getErr != nil {
+			// If the GET fails we can't trust status.Replicas anymore. This error
+			// is bound to be more interesting than the update failure.
+			return nil, getErr
+		}
 	}
 
 	return nil, updateErr

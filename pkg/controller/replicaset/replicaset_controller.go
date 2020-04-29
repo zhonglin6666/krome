@@ -194,20 +194,21 @@ func (r *ReconcileReplicaSet) Reconcile(request reconcile.Request) (reconcile.Re
 	newStatus := calculateStatus(rs, filteredPods, manageReplicasErr)
 
 	// Always updates status as pods come up or die.
-	updatedRS, err := updateReplicaSetStatus(r.kromeClient, rs, newStatus)
+	updatedRS, err := updateReplicaSetStatus(r.client, r.kromeClient, rs, newStatus)
 	if err != nil {
 		// Multiple things could lead to this update failing. Requeuing the replica set ensures
 		// Returning an error causes a requeue without forcing a hotloop
 		return reconcile.Result{}, err
 	}
-	// Resync the ReplicaSet after MinReadySeconds as a last line of defense to guard against clock-skew.
-	if manageReplicasErr == nil && updatedRS.Spec.MinReadySeconds > 0 &&
-		updatedRS.Status.ReadyReplicas == *(updatedRS.Spec.Replicas) &&
-		updatedRS.Status.AvailableReplicas != *(updatedRS.Spec.Replicas) {
 
-		// TODO zzlin for resync
-		// rsc.enqueueReplicaSetAfter(updatedRS, time.Duration(updatedRS.Spec.MinReadySeconds)*time.Second)
+	// Resync the ReplicaSet after MinReadySeconds as a last line of defense to guard against clock-skew.
+	if manageReplicasErr == nil {
+		if updatedRS.Status.ReadyReplicas != *(updatedRS.Spec.Replicas) ||
+			updatedRS.Status.AvailableReplicas != *(updatedRS.Spec.Replicas) {
+			return reconcile.Result{Requeue: true}, nil
+		}
 	}
+
 	return reconcile.Result{}, manageReplicasErr
 }
 
