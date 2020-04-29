@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -126,6 +127,7 @@ type ReconcileDeployment struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	logrus.Infof("Reconcile deployment namespace: %v name: %v", request.Namespace, request.Name)
 	// Fetch the Deployment instance
 	instance := &kromev1.Deployment{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)

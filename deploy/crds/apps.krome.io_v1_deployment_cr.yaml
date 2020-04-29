@@ -1,7 +1,0 @@
-apiVersion: apps.krome.io/v1
-kind: Deployment
-metadata:
-  name: example-deployment
-spec:
-  # Add fields here
-  size: 3

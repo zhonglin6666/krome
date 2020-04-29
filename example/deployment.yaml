@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: deploy-example
-        image: nginx:1.13
+        image: nginx:1.12.2
         imagePullPolicy: IfNotPresent
         env:
         - name: env-test-1
@@ -25,11 +25,12 @@ spec:
       readinessGates:
       - conditionType: InPlaceUpdateReady
   podManagementPolicy: Parallel
-  updateStrategy:
+  strategy:
     type: RollingUpdate
     rollingUpdate:
       podUpdatePolicy: InPlaceIfPossible
-      #maxUnavailable: 1
+      maxSurge: 1
+      maxUnavailable: 0
       #partition: 0
 #  volumeClaimTemplates:
 #  - metadata:

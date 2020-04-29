@@ -590,6 +590,8 @@ func getDesiredReplicasAnnotation(rs *kromev1.ReplicaSet) (int32, bool) {
 // 1) The new RS is saturated: newRS's replicas == deployment's replicas
 // 2) Max number of pods allowed is reached: deployment's replicas + maxSurge == all RSs' replicas
 func newRSNewReplicas(deployment *kromev1.Deployment, allRSs []*kromev1.ReplicaSet, newRS *kromev1.ReplicaSet) (int32, error) {
+	logrus.Infof("zzlin newRSNewReplicas deployment: %#v", deployment.Spec.Strategy.RollingUpdate)
+	logrus.Infof("zzlin newRSNewReplicas type: %v", deployment.Spec.Strategy.Type)
 	switch deployment.Spec.Strategy.Type {
 	case kromev1.RollingUpdateDeploymentStrategyType:
 		// Check if we can scale up

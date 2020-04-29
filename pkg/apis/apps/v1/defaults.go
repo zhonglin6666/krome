@@ -40,8 +40,12 @@ func SetDefaults_Deployment(obj *Deployment) {
 			obj.Spec.Strategy.RollingUpdate = &RollingUpdateDeployment{}
 		}
 		if obj.Spec.Strategy.RollingUpdate.MaxUnavailable == nil {
-			maxUnavailable := intstr.FromInt(1)
+			maxUnavailable := intstr.FromInt(0)
 			obj.Spec.Strategy.RollingUpdate.MaxUnavailable = &maxUnavailable
+		}
+		if obj.Spec.Strategy.RollingUpdate.MaxSurge == nil {
+			maxSurge := intstr.FromInt(1)
+			obj.Spec.Strategy.RollingUpdate.MaxSurge = &maxSurge
 		}
 		if obj.Spec.Strategy.RollingUpdate.PodUpdatePolicy == "" {
 			obj.Spec.Strategy.RollingUpdate.PodUpdatePolicy = RecreatePodUpdateStrategyType
