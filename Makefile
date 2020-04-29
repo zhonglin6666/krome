@@ -14,7 +14,7 @@ all: fmt build-exec image apply
 test: fmt
 	go test ./pkg/controller/... -coverprofile cover.out
 
-build-exec:
+build-exec: fmt
 	mkdir -p ./_output
 	echo "Building server..."
 	CGO_ENABLED=0 GOOS=linux go build -v -i -ldflags '-X main.version=$(REV) ' -o ./_output/${NAME} ./cmd/manager/$*
